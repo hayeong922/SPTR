@@ -1,0 +1,4 @@
+pattern (((((NN|JJ) )*NN) IN (((NN|JJ) )*NN))|(((NN|JJ) )+NN))
+stoplist stoplist.txt
+max 3
+min 2

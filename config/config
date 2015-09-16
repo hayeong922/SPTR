@@ -1,0 +1,31 @@
+[DEFAULT]
+#textual resource to be indexed and extracted
+data=../data/wikipedia_jetEngine_resource
+
+#part-of-speech(pos) sequence pattern for filtering term candidate lexical units
+pos_sequence_filter=../config/pos_sequence_filter3
+
+#stop words list for filtering term candidates
+stopwords=../config/stoplist.txt
+
+# Maximum number of words allowed in a multi-word term. Default value is 6
+# must also set gram size range for solr.ShingleFilterFactory in solr schema.xml
+max_tokens=5
+# Minimum number of words allowed in a multi-word term. Default value is 1
+# must also set gram size range for solr.ShingleFilterFactory in solr schema.xml
+min_tokens=1
+
+#Minimum number of characters allowed in any term candidates units. Default value is 2
+min_char_length=1
+
+#Minimum frequency allowed for term candidates. Default value is 2
+min_term_freq=2
+
+# Maximum number of annotation processes that can run at the same time.
+PARALLEL_WORKERS=6
+
+# cut-off threshold (exclusive) for term recognition
+cut_off_threshold=0
+
+# Index core
+solr_core_url=http://localhost:8983/solr/tatasteel

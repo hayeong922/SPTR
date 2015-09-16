@@ -1,0 +1,2 @@
+# Anick, P., Verhagen, M., & Pustejovsky, J. (2014). Extracting Aspects and Polarity from Patents. Proceedings of SADAATL, 31-39.
+<JJ>? <NN|NNP|NNS>+

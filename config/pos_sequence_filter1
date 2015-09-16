@@ -1,0 +1,6 @@
+<NN|JJ>* <NN|NNP|NNS> <IN> <DT>? <NN|NNP|NNS|JJ|VBG>* <NN|NNP|NNS> #hopital for sick children
+<NN|NNP|NNS>+ <POS> <DT>? <NN|NNP|NNS|JJ|VBG>* <NN|NNP|NNS> # Performance of radio
+<NN|NNP|NNS>+ <VBN> <NN|NNP|NNS> #packet switched network
+<JJ|NN|NNP|NNS|VBG>+ <NN|NNP|NNS>
+<NN|NNP|NNS>+
+<DT> <JJ|NN|NNP|NNS|VBG>+ #address low recall caused by low precision of POS tagging, e.g., the/DT Alpha-Iron/JJ

@@ -1,0 +1,5 @@
+# L. Kozakov, et al, "Glossary extraction and utilization in the information search and delivery system for IBM Technical Support," IBM Syst. J., vol. 43, no. 3, pp. 546-563, 2004.
+<VBG|VBN>+ <NN|NNP|NNS>
+<VBG|VBN>+ <NN|NNP|NNS>+ <NN|NNP|NNS>
+<VBG|VBN>+ (<JJ> (<CC> <JJ>)*)+ <NN|NNP|NNS>
+ 
