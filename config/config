@@ -88,4 +88,5 @@ dict_tagger_fuzzy_matching=false
 dict_tagger_sim_threshold=0.86
 
 #The Solr field to where the dictionary matched terms will be indexed
-solr_field_dictionary_term=industryTerm
+#SHOULD BE DIFFERENT FROM THE "solr_field_industry_term" FIELD
+solr_field_dictionary_term=dictTerm_ss

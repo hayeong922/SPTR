@@ -168,16 +168,15 @@ class IndustryTermRecogniser(object):
             for doc in docs:
                 if FIELD_TERM_CANDIDATES in doc:
                     term_candidates = doc[FIELD_TERM_CANDIDATES]
-                    
-                    industry_terms=list()
-                    if FIELD_INDUSTRY_TERM in doc:
-                        industry_terms=doc[FIELD_INDUSTRY_TERM]
-                    
                     filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
-                    industry_terms.extend(filtered_candidates)
+                    
+                    if FIELD_DICTIONARY_TERM in doc:
+                        dict_terms = doc[FIELD_DICTIONARY_TERM]
+                        if dict_terms:
+                            filtered_candidates.extend(dict_terms)
                     
                     #print("final industry_terms:", industry_terms)
-                    doc[FIELD_INDUSTRY_TERM] = list(set(industry_terms))
+                    doc[FIELD_INDUSTRY_TERM] = list(set(filtered_candidates))
                     
                     cur_docs_to_commits.append(doc)
                 else:
