@@ -15,17 +15,25 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import logging
 import configparser
 
+import csv
+
+import sqlite3
+
 from SolrClient import SolrClient
 from TaggingProcessor import TaggingProcessor
 from util import TermUtil
+from FileUtil import path_leaf
 
 import math
 from multiprocPool import MultiprocPool
 
+FIELD_TERM_CANDIDATES="term_candidates_tvss"
+FIELD_INDUSTRY_TERM="industryTerm"
+FIELD_DICTIONARY_TERM="dictTerm_ss"
+
 class IndustryTermRecogniser(object):
     '''
-    This class perform industry term recognition based on apache solr
-    
+    This class perform industry term recognition based on Apache Solr    
     '''
     def __init__(self, solr_url):
         
@@ -42,9 +50,75 @@ class IndustryTermRecogniser(object):
             self.cut_off_threshold=float(config['DEFAULT']['cut_off_threshold'])
         except KeyError:
             self._logger.exception("Oops! 'cut_off_threshold' is not found in config file. Default to set -100")
-            #raise Exception("Please check 'PARALLEL_WORKERS' is properly configured!")
             self.cut_off_threshold = float(-100)
         
+        try:
+            self.sim_threshold = float(config['DEFAULT']['sim_threshold'])
+        except KeyError:
+            self._logger.exception("Oops! 'sim_threshold' is not found in config file. Default to set 0.99")
+            self.sim_threshold = float(0.99)    
+            
+        try:
+            self.tagging = config['DEFAULT']['tagging']
+            if "true" == self.tagging.lower():
+                self.tagging = True
+            elif "false" == self.tagging.lower():
+                self.tagging = False
+            else:
+                raise Exception("current setting [%s] for 'tagging' is not supported!"%self.tagging)
+        except KeyError:
+            self._logger.exception("Oops! 'tagging' is set incorrectly in config file. Default to set true")
+            self.tagging = True
+            
+        global FIELD_TERM_CANDIDATES
+        try:            
+            FIELD_TERM_CANDIDATES = config['DEFAULT']['solr_field_term_candidates']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_field_term_candidates' is not found in config file. Default to [%s]", FIELD_TERM_CANDIDATES)
+            
+        global FIELD_INDUSTRY_TERM
+        try:            
+            FIELD_INDUSTRY_TERM = config['DEFAULT']['solr_field_industry_term']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_field_industry_term' is not found in config file. Default to [%s]", FIELD_TERM_CANDIDATES)
+                
+        try:
+            self.export_term_candidates = config['DEFAULT']['export_term_candidates']
+            if "true" == self.export_term_candidates.lower():
+                self.export_term_candidates=True
+            elif "false" == self.export_term_candidates.lower():
+                self.export_term_candidates=False
+            else:
+                raise Exception("current setting [%s] for 'export_term_candidates' is not supported!"%self.export_term_variants)
+        except KeyError:
+            self._logger.exception("Oops! 'export_term_candidates' is set incorrectly in config file. Default to set false")
+            self.export_term_candidates = False
+        
+        try:
+            self.export_term_variants = config['DEFAULT']['export_term_variants']
+            if "true" == self.export_term_variants.lower():
+                self.export_term_variants=True
+            elif "false" == self.export_term_variants.lower():
+                self.export_term_variants=False
+            else:
+                raise Exception("current setting [%s] for 'export_term_variants' is not supported!"%self.export_term_variants)
+        except KeyError:
+            self._logger.exception("Oops! 'export_term_variants' is set incorrectly in config file. Default to set false")
+            self.export_term_variants = False
+        
+        try:
+            self.term_variants_export_file_name=config['DEFAULT']['term_variants_export_file_name']
+        except KeyError:
+            self._logger.exception("Oops! 'term_variants_export_file_name' is set incorrectly in config file. Default to set 'term_variants'")
+            self.term_variants_export_file_name = "term_variants"
+        
+        global FIELD_DICTIONARY_TERM
+        try:
+            FIELD_DICTIONARY_TERM=config['DICTIONARY_TAGGER']['solr_field_dictionary_term']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_field_dictionary_term' is set incorrectly in config file. Default to index into the 'dictTerm_ss' field")
+            FIELD_DICTIONARY_TERM='dictTerm_ss'
+            
         self.solrClient =  SolrClient(solr_url)
     
     def terminology_tagging(self):
@@ -53,21 +127,31 @@ class IndustryTermRecogniser(object):
         '''
         self._logger.info("executing terminology recognition and tagging...")
         c_value_algorithm = CValueRanker(self.solrClient)
-        ranked_term_tuple_list = c_value_algorithm.process(tagging=True)
+        ranked_term_tuple_list = c_value_algorithm.process(tagging=self.tagging)
         
         self._logger.info("filtering ranked term candidate list by cut-off threshold [%s]", self.cut_off_threshold)
         final_term_set = [term_tuple[0] for term_tuple in ranked_term_tuple_list if term_tuple[1] > self.cut_off_threshold]
+        
         self._logger.info("final term size after cut-off [%s]", str(len(final_term_set)))
-        #print(final_term_set)
+        
+        #TODO: use the c-value to boost term
+        #TODO: may also only index the ID of term and retrieve term name and synonyms at query time
         
         self.final_term_set_indexing(final_term_set)
+        term_db_path = self.save_ranked_candidates_to_db(self.solrClient.solr_core, ranked_term_tuple_list)
+        if self.export_term_candidates:
+            self.export_ranked_terms_to_csv(term_db_path)
+        else:
+            self._logger.info("skip exporting term candidates from Solr.")
+        
+        self.synonym_aggregation(final_term_set)
         self._logger.info("terminology recognition and tagging are completed.")
         
     def final_term_set_indexing(self, final_term_set):
         '''
         indexing filtered term candidates into 'industry_term_ss' field by the final term set
         '''
-        self._logger.info("indexing term set into 'industry_term_ss' ...")
+        self._logger.info("indexing term set into '%s' ...", FIELD_INDUSTRY_TERM)
         totalDocSize = self.solrClient.total_document_size()
         
         self._logger.info("total document size for final industry term tagging [%s]"%totalDocSize)
@@ -82,22 +166,135 @@ class IndustryTermRecogniser(object):
             #TODO: parallel annotation
             cur_docs_to_commits=[]
             for doc in docs:
-                term_candidates = doc['term_candidates_ss']
-                
-                filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
-                doc['industry_term_ss'] = filtered_candidates
-                #print("filtered_candidates: ", filtered_candidates)
-                
-                #TODO: remove results in term_candidates_ss
-                cur_docs_to_commits.append(doc)
+                if FIELD_TERM_CANDIDATES in doc:
+                    term_candidates = doc[FIELD_TERM_CANDIDATES]
+                    
+                    industry_terms=list()
+                    if FIELD_INDUSTRY_TERM in doc:
+                        industry_terms=doc[FIELD_INDUSTRY_TERM]
+                    
+                    filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
+                    industry_terms.append(filtered_candidates)
+                       
+                    doc[FIELD_INDUSTRY_TERM] = list(set(industry_terms))
+                    
+                    cur_docs_to_commits.append(doc)
+                else:
+                    doc[FIELD_INDUSTRY_TERM]=[]
                 
             self.solrClient.batch_update_documents(cur_docs_to_commits)
             self._logger.info("batch updated current batch. nextCursor[%s]" %str(nextCursor))
             
         self._logger.info("Industry Term extraction and indexing are completed!")
     
-    def synonym_aggregation(self, terms):
-        raise NotImplementedError("Should have implemented this method!")
+    def save_ranked_candidates_to_db(self, core_name, ranked_term_tuple_list):
+        '''
+        save all ranked term candidates to sqllite db and export afterward for the sake of evaluation and cut-off threshold selection
+        params:
+            core_name,                solr core name
+            ranked_term_tuple_list,   ranked term tuple list (term, weight) 
+        return string, database path
+        '''
+        
+        db_path=os.path.join(os.path.dirname(__file__), '..', str(core_name)+"_term_candidates.db")
+        self._logger.info("loading into terminology database [%s]", db_path)
+        db_conn = sqlite3.connect(db_path)
+        try:            
+            c = db_conn
+            #create table
+            c.execute('''create table IF NOT EXISTS term_candidates(term_name TEXT PRIMARY KEY, 
+                    weight float)''')
+            #clear table
+            c.execute('''delete from term_candidates;''')
+            c.commit()
+            
+            for term, score in ranked_term_tuple_list:
+                try:
+                    c.execute('INSERT INTO term_candidates(term_name, weight) VALUES(?,?)', [term,score])        
+                    
+                except sqlite3.IntegrityError:
+                    print("duplicated term! term is [%s]"%term);
+                except:
+                    print("SQL Insert Error",sys.exc_info()[0])
+            c.commit()
+        except:
+            print("SQL Insert Error",sys.exc_info()[0])
+        finally:
+            db_conn.close()
+        self._logger.info("complete data loading into db.")
+        return db_path
+        
+    def export_ranked_terms_to_csv(self, term_db_path):        
+        self._logger.info("exporting [%s] into csv ...", term_db_path)
+        
+        dbname=path_leaf(term_db_path)
+        
+        output_csv=os.path.join(os.path.dirname(__file__), '..',dbname+".csv")
+        
+        query_term_set='''select * from term_candidates;'''
+        conn_term_db=sqlite3.connect(term_db_path)
+        term_resultset = conn_term_db.execute(query_term_set)
+        with open(output_csv, 'w', encoding="utf-8") as outfile:
+            csvWriter=csv.writer(outfile, delimiter=",",lineterminator='\n',quoting=csv.QUOTE_MINIMAL)
+            csvWriter.writerow(['term','weight'])
+            for row in term_resultset:
+                csvWriter.writerow([row[0],row[1]])
+        
+        self._logger.info("terms has been exported into [%s]", output_csv)
+
+    def synonym_aggregation(self, terms=set()):
+        '''
+        interlinking terms with similarity computation and aggregate  
+        1) case insensitivity matching;
+        2) ASCII-equivalent matching () ;
+        3) Diacritic-elimination matching ()
+        4) Punctuation-elimination matching (Marc Anthony <==> Marc-Anthony or Beer Sheva <==> Be'er Sheva)
+        5) stemming
+        6) string distance matching (normalised levenshtein metrics) -> TODO: later
+        '''
+        
+        if not self.export_term_variants:
+            self._logger.info("Skip exporting term variants!")
+            return
+        
+        self._logger.info("Term variation detection and aggregation...")
+        
+        v = {}
+        norm_term_dict = dict((term, self.solrClient.get_industry_term_field_analysis(term)) for term in terms)
+        for key, value in sorted(norm_term_dict.items()):
+            v.setdefault(value, []).append(key)
+        
+        aggregated_terms = v.values()
+        
+        #TODO: normed Levenshtein similarity matching
+        
+        from FileUtil import export_list_of_list_to_csv
+        export_list_of_list_to_csv(os.path.join(os.path.dirname(__file__), '..'), self.term_variants_export_file_name, list(aggregated_terms))
+        
+    def term_variations_detection(self, term1, term2, terms=set()):
+        '''
+        perform terminology variation detection via Solr
+        param:
+            term1,
+            term2,
+            terms, optional, providing all the terms can improve efficiency significantly
+        return True, if term2 is the variation of term1
+        '''
+        if len(terms) > 0:            
+            global norm_term_dict
+            if norm_term_dict:
+                self._logger.debug("loading normalised terms ...")
+                norm_term_dict = dict((term, self.solrClient.get_industry_term_field_analysis(term)) for term in terms)
+                self._logger.debug("term dict loaded.")
+        
+        if norm_term_dict:
+            term1_phonetic_norm = norm_term_dict(term1)
+            term2_phonetic_norm = norm_term_dict(term2)
+        else:
+            term1_phonetic_norm = self.solrClient.get_industry_term_field_analysis(term1)
+            term2_phonetic_norm = self.solrClient.get_industry_term_field_analysis(term2)
+        
+        return term1_phonetic_norm == term2_phonetic_norm 
     
     def synonym_update(self, terms):
         raise NotImplementedError("Should have implemented this method!")
@@ -150,6 +347,7 @@ class TermRanker(object):
             cur_docs_to_commits=[]
             for doc in docs:
                 content = doc['content']
+                doc_id = doc['id']
                 #lang= doc['language_s']
                 #skip non-english ?
                 '''
@@ -157,8 +355,12 @@ class TermRanker(object):
                     continue
                 '''
                 term_candidates = self.taggingProcessor.term_candidate_extraction(content)
+                doc[FIELD_TERM_CANDIDATES]=list(term_candidates)
                 
-                doc['term_candidates_ss']=list(term_candidates)
+                if self.taggingProcessor.dict_tagging:
+                    dictionary_terms = self.taggingProcessor.term_dictionary_tagging(doc_id)
+                    doc[FIELD_DICTIONARY_TERM]=list(dictionary_terms)
+                
                 cur_docs_to_commits.append(doc)
                 
             self.solrClient.batch_update_documents(cur_docs_to_commits)
@@ -167,7 +369,7 @@ class TermRanker(object):
         self._logger.info("Term candidate extraction and loading for whole index is completed!")
         
     def get_all_candidates(self):
-        all_candidates = self.solrClient.field_terms('term_candidates_ss')
+        all_candidates = self.solrClient.field_terms(FIELD_TERM_CANDIDATES)
         return all_candidates
     
     def get_all_candidates_N(self):
@@ -181,17 +383,14 @@ class TermRanker(object):
     
     @staticmethod
     def sum_ttf_candidates(solrClient, candidates_list):
-        candidates=set([term.lower() for term in candidates_list])
-        #self._logger.debug("lower case normalised candidates size: [%s]", len(candidates))
-        candidates_ttf=solrClient.totaltermfreq('content', candidates)
-        return sum(candidates_ttf.values())        
+        candidates_ttf_dict, normed_candidates_dict =solrClient.totaltermfreq('content', set(candidates_list))
+        return sum(candidates_ttf_dict.values())        
     
     def process(self, tagging=True):
         raise NotImplementedError("Should have implemented this method!")
     
     def ranking(self):
         raise NotImplementedError("Should have implemented this method!")
-    
 
 class CValueRanker(TermRanker):
     '''
@@ -216,7 +415,7 @@ class CValueRanker(TermRanker):
     @staticmethod
     def get_longer_terms(term, all_candidates):
         '''
-        the number of candidate terms that contain current term
+        the number of candidate terms that contain current term 
         params:
             term, current term surface form
             all candidates: all candidates surface form from index
@@ -265,9 +464,9 @@ class CValueRanker(TermRanker):
         solrClient = SolrClient(solr_core_url)
         
         longer_terms = CValueRanker.get_longer_terms(term, all_candidates)
-        term_freq = solrClient.totaltermfreq('content', {term})
+        term_freq_dict,normed_term_dict = solrClient.totaltermfreq('content', {term})
         #print(term_freq)
-        term_freq = list(term_freq.values())[0]
+        term_freq = list(term_freq_dict.values())[0]
         
         #print("term freq of '",term,"': ", term_freq)
         
@@ -311,6 +510,10 @@ def test_cvalue_calcuation():
     
     cvalueAlg = CValueRanker(solrClient)
     all_candidates = cvalueAlg.get_all_candidates()
+    
+    term_cvalue = cvalueAlg.calculate("BAD CUT", all_candidates, solrClient.solrURL)
+    print("cvalue 'BAD CUT' :", term_cvalue)
+    
     
     term_cvalue = cvalueAlg.calculate("surface defects", all_candidates, solrClient.solrURL)
     print("cvalue 'surface defects' :", term_cvalue)
@@ -393,7 +596,7 @@ def test_cvalue_calcuation():
     term_cvalue = cvalueAlg.calculate("confirmation", all_candidates, solrClient.solrURL)
     print("cvalue 'confirmation' :", term_cvalue)
     
-    
+  
 def test_cvalue_ranking():
     solrClient =  SolrClient("http://localhost:8983/solr/tatasteel")    
     cvalueAlg = CValueRanker(solrClient)
@@ -404,17 +607,11 @@ def test_cvalue_ranking():
 def test_tr_tagging():
     trTagger = IndustryTermRecogniser("http://localhost:8983/solr/tatasteel")
     trTagger.terminology_tagging()
-    
+
 if __name__ == '__main__':
     import logging.config
     logging.config.fileConfig(os.path.join(os.path.dirname(__file__), '..', 'config', 'logging.conf'))
     
-    '''
-    from SolrClient import SolrClient
-    solrClient =  SolrClient("http://localhost:8983/solr/tatasteel")
-    termRanker = TermRanker(solrClient)
-    #termRanker.batch_candidate_tagging()
-    '''
     #test_get_longer_term()
     #test_cvalue_calcuation()
     #test_cvalue_ranking()

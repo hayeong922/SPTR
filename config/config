@@ -1,7 +1,4 @@
 [DEFAULT]
-#textual resource to be indexed and extracted
-data=../data/wikipedia_jetEngine_resource
-
 #part-of-speech(pos) sequence pattern for filtering term candidate lexical units
 pos_sequence_filter=../config/pos_sequence_filter3
 
@@ -21,11 +18,74 @@ min_char_length=1
 #Minimum frequency allowed for term candidates. Default value is 2
 min_term_freq=2
 
-# Maximum number of annotation processes that can run at the same time.
+# Maximum number of processes (for annotation and dictionary tagging) that can run at the same time.
 PARALLEL_WORKERS=6
 
 # cut-off threshold (exclusive) for term recognition
 cut_off_threshold=0
 
+# similarity threshold (term variations/synonyms identification)
+# TODO: implement and evaluate later
+sim_threshold=0.95
+
+# SPTR provides a way to associate terminologies from a dictionary to text
+# ONLY SUPPORT CSV FORMAT WITH TWO COLUMNS INCLUDING TERM SURFACE FORM AND DESCRIPTION
+# A name/lookup field (default as "content" field) indexed with Shingling
+term_dictionary=../config/Steel-Terminology-Tata-Steel.csv
+
 # Index core
 solr_core_url=http://localhost:8983/solr/tatasteel
+
+# solr content field from where terminology and frequency information will be queried and analysed
+# Terminology Recognition aware NLP pipeline must be configured for this field.
+# Recommended configuration for this field type is consisted of solr.StandardTokenizerFactory -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.EnglishMinimalStemFilterFactory -> solr.ShingleFilterFactory 
+# An example configuration is in schema.xml
+solr_field_content=content
+
+# The solr terminology normalisation analyser (solr_term_normaliser) is used to normalise terms before querying frequency information via Solr ttf functionQuery 
+# Recommended configuration for this analyser is consisted of solr.StandardTokenizerFactory -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.EnglishMinimalStemFilterFactory
+# "Field Analysis Request Handler" must also be enabled
+# An example configuration is in schema.xml and solrconfig.xml
+solr_term_normaliser=industry_term_query_type
+
+# solr field where term candidates will be stored and indexed
+# THIS MUST ALSO BE CONFIGURED IN SOLR SCHEMA FOR MULTIVALUED FIELD INDEXED AND STORED WITH TERM VECTOR ENABLED
+solr_field_term_candidates=term_candidates_tvss
+
+# solr field where final filtered terms will be stored and indexed
+# THIS MUST ALSO BE CONFIGURED IN SOLR SCHEMA FOR "industry_term_type" FIELD TYPE
+# "industry_term_type" should be configured for general term variation normalisation 
+# (Recommended setting: solr.KeywordTokenizerFactory -> solr.PatternReplaceCharFilterFactory ('-' -> ' ') -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.PhoneticFilterFactory)
+solr_field_industry_term=industryTerm
+
+#disabling this setting will only executing ranking for candidates and indexing filtered candidates
+# options: true|false
+tagging=true
+
+#exporting (all) term candidates can help to evaluate and choose a suitable cut-off threshold
+#the export file name default as solr core name + 'term_candidates' (CSV format by default)
+# options: true|false
+export_term_candidates=true
+
+# exporting term (filtered terms) variants (CSV format by default)
+# options: true|false
+export_term_variants=true
+term_variants_export_file_name=term_variants
+
+[DICTIONARY_TAGGER]
+# disabling this setting will not perform dictionary tagging
+# options: true|false
+dict_tagging=true
+
+# support one dictionary file to tag the indexed documents
+# dictionary file must be in csv format with two columns (term name and descriptions). MUST NOT INCLUDE HEADDING IN FIRST ROW.
+dictionary_file=../config/Steel-Terminology-Tata-Steel.csv
+
+#Disable this will perform exact matching
+#Exact matching is based on normalised term forms (see solr_term_normaliser above)
+dict_tagger_fuzzy_matching=false
+#similarity threshold (range: [0-1]) for fuzzy matching
+dict_tagger_sim_threshold=0.86
+
+#The Solr field to where the dictionary matched terms will be indexed
+solr_field_dictionary_term=industryTerm

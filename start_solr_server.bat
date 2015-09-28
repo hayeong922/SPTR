@@ -1,0 +1,1 @@
+solr-5.3.0\bin\solr start -h localhost -p 8983 -d C:\\oak-project\\SPEEAK-PC-TermRecognition\\solr-5.3.0\\server -s C:\\oak-project\\SPEEAK-PC-TermRecognition\\solr-5.3.0\\data

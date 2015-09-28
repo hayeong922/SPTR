@@ -1,0 +1,7 @@
+# python dependencies
+
+unidecode
+requests
+httplib2
+nltk
+pandas

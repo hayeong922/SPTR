@@ -57,7 +57,16 @@ def export_to_txt_file(file_dir, file_name, content):
         os.makedirs(os.path.join(file_dir))
     
     with open(os.path.join(file_dir, file_name+".txt"), mode='w', encoding='utf-8') as outfile:
-        outfile.write(content)        
+        outfile.write(content)
+
+def export_list_of_list_to_csv(file_dir, file_name, list_values):
+    '''
+    export a list of list to csv
+    '''   
+    with open(os.path.join(file_dir, file_name+".csv"), mode='w', encoding='utf-8') as outfile:
+        csvWriter=csv.writer(outfile, delimiter=",",lineterminator='\n',quoting=csv.QUOTE_MINIMAL)
+        for row in list_values:
+                csvWriter.writerow(row)
 
 def continuous_export_to_file(file_dir, file_name, content):
     if not os.path.exists(os.path.join(file_dir)):
@@ -111,7 +120,16 @@ def load_tuple_list_from_file(filepath, pdelimiter='\t'):
         tuple_list.append((word_freq[0], word_freq[1]))
         
     return tuple_list        
-        
+
+import pandas as pd
+def load_terms_from_csv(dict_csv_file):
+    '''
+    load terms from term dictionary csv file
+    return set, term set from first column
+    '''
+    data = pd.read_csv(dict_csv_file,header=None)
+    return set(data[0])
+      
 from bs4 import BeautifulSoup
 def extract_tagged_term_from_sent(_tagged_sentence):
     _logger=logging.getLogger(__name__)
@@ -154,6 +172,11 @@ def read_by_line(filePath):
         content = [line.rstrip(DELIMITER) for line in f.readlines()]
     return content
 
+def path_leaf(path):
+    import ntpath
+    head, tail = ntpath.split(path)
+    return tail or ntpath.basename(head)    
+    
 import json
 def export_set_to_json(term_set,outputFile):    
     with open(outputFile, mode='w', encoding='utf-8') as f:

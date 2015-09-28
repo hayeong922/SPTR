@@ -74,8 +74,7 @@ class LinguisticPreprocessor(object):
                     #|[a-zA-Z0-9]+  # 
                     |'s # POS                
                     |\.\.\.         # ellipsis
-                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens
-                    
+                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens                    
         '''
         return RegexpTokenizer(special_text_token_pattern)
     

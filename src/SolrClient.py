@@ -16,7 +16,6 @@ from urllib.parse import urljoin, urlsplit
 import json
 import re
 
-from util import TermUtil
 import requests
 from httplib2 import Http
 
@@ -125,6 +124,7 @@ class SolrClient(object):
         self.solrURL = server_url
         self.scheme, netloc, path, query, fragment = urlsplit(server_url)
         netloc = netloc.split(':')
+        
         self.host = netloc[0]
         if len(netloc) == 1:
             self.host, self.port = netloc[0], None
@@ -132,6 +132,9 @@ class SolrClient(object):
             self.host, self.port = netloc            
         
         self.path = path.rstrip('/')
+        
+        self.solr_core = self.path.split('/')[-1:][0]
+        
         self.timeout=timeout
         self.result_class = result_class
         
@@ -139,6 +142,16 @@ class SolrClient(object):
             self.http = Http(cache=cache or ".cache",timeout=self.timeout)
         else:
             self.http = Http(timeout=self.timeout)
+            
+        import configparser
+        config = configparser.ConfigParser()
+        config.read(os.path.join(os.path.dirname(__file__), '..', 'config','config'))
+        try:
+            self.solr_term_normaliser = config['DEFAULT']['solr_term_normaliser']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_term_normaliser' is not found in config file. Default the analyser as 'industry_term_query_type'")
+            self.solr_term_normaliser = "industry_term_query_type"
+        
     
     def load_documents(self, start=0, rows=10):
         '''
@@ -184,7 +197,11 @@ class SolrClient(object):
         return result['numFound']
     
     def term_vectors(self,q,field=None,**kwargs):
-        params = {'q': q or '','tv.all':'true' }
+        '''
+        param:
+         q, query field, need to escape Special Characters + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+        '''
+        params = {'q': q.replace(':','\:') or '','tv.all':'true' }
         if field:
             params['tv.fl'] = field
             
@@ -192,6 +209,25 @@ class SolrClient(object):
         
         response = self._tvrh(params)
         return TermVectorResult(field,response)
+    
+    def query_indexed_terms_by_docId(self, docId, p_field='content'):
+        '''
+        return dict, term vector information
+        '''
+        params = dict()
+        params['fl']="id,content"
+        params['start']=0
+        params['rows']=1        
+        
+        query="id:'%s'"%docId
+        #query="\"S-Print\""
+        #query='C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt'
+        result= self.term_vectors(query, field=p_field, start=0,rows=1)
+        #print(result.tv)
+        if docId in result.tv:
+            return result.tv[docId][p_field]
+        else:
+            return {}        
     
     def terms_query_longer_terms(self, field, subterm):
         '''
@@ -209,37 +245,48 @@ class SolrClient(object):
         '''
         This function uses Solr ttf functionQuery to total term (ngram) frequency in whole index
         
-        Can support multiple terms per request
+        Notes: the field query analyser significantly affects the ttf function query. To get accurate result, recommendation setting is to avoid solr.StopFilterFactory.
+        Recommendation analyser : solr.StandardTokenizerFactory/solr.WhitespaceTokenizerFactory -> 
+                                solr.PatternReplaceCharFilterFactory/solr.HyphenatedWordsFilterFactory ->
+                                solr.LowerCaseFilterFactory -> 
+                                solr.ASCIIFoldingFilterFactory -> 
+                                solr.EnglishMinimalStemFilterFactory
+        The analyser pipeline should apply to both content indexing (before solr.ShingleFilterFactory) and term normalisation (recommended setting is to configure a analyser [see SolrClient.get_industry_term_field_analysis])
+        
         if mutiple terms is requested, the result may return less result than requested as only normalised term will be returned.
         param:
             field, indexed term (lower case + hyphen normalised) to query
             terms, a set of terms to query total frequency from the 'field'
-        return dict, term ttf dictionary with normalised term as key and ttf as value
+            
+        return tuple of two dictionaries: 1) term ttf dictionary with normalised term as key and ttf as value
+                                        2) normalised term dictionary with term as key and normed term as value
+                                        
         '''
         max_terms_per_request=10
         terms=list(terms)
         
         resultSet={}
+        #mapping of term (key) and normalised form
+        normed_terms_dict={}
         for next_cursor in range(0, len(terms), max_terms_per_request):
             current_terms = terms[next_cursor:next_cursor+max_terms_per_request]
             
-            params={'q':'*:*','fl':','.join(['ttf(%s,\'%s\')'%(field,TermUtil.normalise(term)) for term in current_terms])}
+            current_normed_terms_dict=dict(((term, self.get_industry_term_field_analysis(term)) for term in current_terms))
+            normed_terms_dict.update(current_normed_terms_dict)
+            
+            params={'q':'*:*','fl':','.join(['ttf(%s,\'%s\')'%(field,normed_term) for term, normed_term in current_normed_terms_dict.items()])}
                     
             params['q'] = self._encode_q(params['q'])
             params['rows']=1
             params['wt'] = 'json' # specify json encoding of results
             path = '%s/select?%s' % (self.path, urlencode(params, True))
-            #print(path)
+            
             response = self._send_request('GET', path)
             
-            #self.decoder = json.JSONDecoder()        
-            #result = self.decoder.decode(response.decode("utf-8"))
-            #result=result['response']['docs']
             result=response['response']['docs']
             resultSet.update(result[0])
             
-            #return list(result[0].values())[0]
-        return dict([(k.replace('ttf(%s,\''%field,'').replace('\')',''),v) for k, v in resultSet.items()])
+        return dict([(k.replace('ttf(%s,\''%field,'').replace('\')',''),v) for k, v in resultSet.items()]), normed_terms_dict
     
     def field_terms(self, fieldname):
         """Yields all term values (converted from on-disk bytes) in the given
@@ -255,6 +302,51 @@ class SolrClient(object):
         
         all_terms=response['terms'][fieldname]
         return list2dict(all_terms)
+    
+    def field_analysis(self, term, field_type="industry_term_type"):
+        '''
+        run field analysis for the term by a given field_type (use pre-defined industry_term_type)
+        return string, phonetic filter normalised term
+        '''
+        params={'analysis.fieldvalue':term,'analysis.fieldtype':field_type}
+        params['wt'] = 'json'
+        path = '%s/analysis/field?%s' % (self.path, urlencode(params, True))
+        response=self._send_request('GET', path)
+        analysis_result = response['analysis']
+        
+        analysis_result= list2dict(analysis_result['field_types'][field_type]['index'])
+        
+        return analysis_result
+    
+    '''
+    def get_phonetic_norm_by_field_analysis(self, term, field_type="industry_term_type"):
+        analysis_result = self.field_analysis(term, field_type="industry_term_type")
+        #print(analysis_result)
+        if 'org.apache.lucene.analysis.phonetic.PhoneticFilter' in analysis_result:
+            phonetic_norm = analysis_result['org.apache.lucene.analysis.phonetic.PhoneticFilter'][0]['text']
+        else:
+            #TODO: change it!!!
+            phonetic_norm = analysis_result['org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter'][0]['text']
+            
+        return phonetic_norm
+    '''
+    def get_industry_term_field_analysis(self, term, pfield_type=None):
+        pfield_type = self.solr_term_normaliser if pfield_type is None else pfield_type
+        try:
+            analysis_result = self.field_analysis(term, field_type=pfield_type)
+        except SolrError:
+            raise SolrError("Solr Error!! The field type [%s] is not found for field analysis! Please check your config for 'solr_term_normaliser'!"%pfield_type)
+        
+        normed_term = ' '.join([term_unit_res['text'] for term_unit_res in analysis_result['org.apache.lucene.analysis.en.EnglishMinimalStemFilter']])
+        
+        #normed_term=analysis_result['org.apache.lucene.analysis.en.EnglishMinimalStemFilter'][0]['text']
+        return normed_term
+    
+    def get_accent_folding_norm_by_field_analysis(self, term, field_type="industry_term_type"):
+        analysis_result = self.field_analysis(term, field_type="industry_term_type")
+        #print(analysis_result)
+        accent_folding_norm = analysis_result['org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter'][0]['text']
+        return accent_folding_norm
         
     def _send_request(self, method, path, data=None, headers=None):
         '''
@@ -287,7 +379,7 @@ class SolrClient(object):
         params['q'] = self._encode_q(params['q'])
         params['wt'] = 'json' # specify json encoding of results
         path = '%s/tvrh?%s' % (self.path, urlencode(params, True))
-        #print(path)
+        
         return self._send_request('GET', path)
     
     def _encode_q(self,qarg):
@@ -334,18 +426,31 @@ def test_term_vectors():
     params['start']=0
     params['rows']=1
     
-    result= tatasteelClient.term_vectors("\"max P levels\"", field="content", start=0,rows=1)
+    
+    query="id:'C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt'"
+    #query="\"S-Print\""
+    #query='C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt'
+    result= tatasteelClient.term_vectors(query, field="content", start=0,rows=1)
     print("TermVectors: ", result.tv)
+    '''
+    
     print(result.docs[0]['id'])
     print(result.docs[0]['content'])
     print(result.tv[result.docs[0]['id']])
-
+    '''
+def test_query_indexed_terms_by_docId():
+    docId="C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt"
+    
+    tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
+    index_terms = tatasteelClient.query_indexed_terms_by_docId(docId, "content")
+    print(index_terms)
+    
 def test_totaltermfreq():
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
     #term_candidates={'U.S.A.', 'V', 'Longitudinal S prints', 'S prints', 'transverse', 'area', 'strand', 'extends', 'Sollac', 'cast', 'Lucchini', 'MSM', 'drops', 'total thickness', 'side', 'country', 'Routine', 'Unimetal blooms', 'B219 steel code', 'B214', 'image', 'Saarstahl', 'light ic', '3rd HP rail Sequence', 'Grade', 'bloom format', 'format', 'cl Grade', 'martyn', 'Andrew Clark', 'scanner', 'final US rate'}
     #term_candidates={'SCP', 'Chase water', 'Submerged opening trials', 'Monitor', 'UT defects', 'Send', 'DG', 'Decarb samples', 'Invite Mark Taylor', 'scheduling SK casts', 'AC', 'MSM Supply', 'performance List', 'Investigate possibility', 'Water modelling', 'KW', 'Re-brief shift Techs', 'action Potential', 'Rota', 'Agree UT spreadsheet conclusions', 'SK systems', 'Progress', 'CC5', 'Ladle', 'Porous plug', 'HP UT performance', 'Update', 'HP', 'crane rail Feedback', 'UT analysis', 'Graph', 'ST info', 'Action', 'Ladle lids Stop period', 'CC4', 'N', 'Continue', 'Send Sulphur print failure info', 'EN', 'SK', 'Accelerometer', 'Trial bloom', 'HP Rail casting Fog', 'meet Amepa insufficient ladles', 'Rail Cleanness Group meetings', 'Circulate', 'HP UT', 'Future trials', 'September Now', 'ST', 'Caster', 'Status','CRF Strand effect', 'JB Strand effect', 'CH defect', 'Liason Group', 'Data', 'ongoing Rail Actions', 'CWJs office', 'JB', 'JB UT', 'CH defects', 'DB', 'MO Bloom length', 'S', 'Exercise', 'CH rails', 'CRF Relationship', 'Mike Orr', 'Teesside', 'CRF', 'JB Side crack', 'SCP', 'Chase water', 'Submerged opening trials', 'Monitor', 'UT defects', 'Send', 'DG', 'Decarb samples', 'Invite Mark Taylor', 'scheduling SK casts', 'AC', 'MSM Supply', 'performance List', 'Investigate possibility', 'Water modelling', 'KW', 'Re-brief shift Techs', 'action Potential', 'Rota', 'Agree UT spreadsheet conclusions', 'SK systems', 'Progress', 'CC5', 'Ladle', 'Porous plug', 'HP UT performance', 'Update', 'HP', 'crane rail Feedback', 'UT analysis', 'Graph', 'ST info', 'Action', 'Ladle lids Stop period', 'CC4', 'N', 'Continue', 'Send Sulphur print failure info', 'EN', 'SK', 'Accelerometer', 'Trial bloom', 'HP Rail casting Fog', 'meet Amepa insufficient ladles', 'Rail Cleanness Group meetings', 'Circulate', 'HP UT', 'Future trials', 'September Now', 'ST', 'Caster', 'Status', 'SCP', 'BAD CUT', 'Bloom Identities Cast No', 'Andrew Alert Code P', 'SURFACE', 'blooms Alert Code P', 'Hinge crack grade', 'Hydris', 'Rail Steel Campaign', 'Pin', 'Cast No', 'Campaign', 'BLOOMS SCRAPPED AT SCUNTHORPE Bloom', 'Seq Posn', 'SENs', 'Hinge Crack Grade', 'Cast', 'Hayange Supply', 'Y', 'final H2', 'Alert Code T P', 'Calculated H2', 'Te H2', 'Quality', 'worse Bloom Identities Cast No', 'Hinge', 'Strand', 'Hood Cooled', 'Bloom', 'N', 'Alert Code P', 'C', 'Max', 'Hayange casts', 'Denis', 'L'}
     #term_candidates={'leader-primary steelmaking', 'off-bos', 'post-hood cooling', 'manganese-alumino-silicates', 'manganese-silicates', 'break-out location', 'pre-heat process', 'non-metallic inclusions', 'break-out', 'harsco shift co-ordinator', 'shift co-ordinator', 'jean-michel', 're-oxidation product', 'non-conforming material', 'slabyard shift co-ordinator', 'non-conforming items', 'as-cast bloom', 'non-conformity', 'jean-luc perrin', 'tundish-after c', 'back-end blooms', 'team leader-primary steelmaking', 'non-rail', 're-brief shift techs', 'non-ends', 'break-out report', 'put-up temperatures', 'macro-inclusions', 'm-ems', 'two-sample t', 'jean-michel leduc', 'co-ordinator', 'x-ray', 'analytical non-conformity', 'k-factor', 's-prints', 'non-branded side gauge corner', 'slag carry-over', 'occasional manganese-alumino-silicates', 'centre-line segregation', 'v-ratio', 'tundish set-up'}
-    term_candidates={'leader-primary steelmaking'}
+    term_candidates={"Defect bloom",'shift co-ordinator','Hayange Quality Problem','Life Ladle', 'BAD CUT'}
     print("size of requested term candidates:", len(term_candidates))
     response = tatasteelClient.totaltermfreq("content", term_candidates)
     print(response)
@@ -390,15 +495,35 @@ def test_batch_update_json_docs():
 def test_field_terms():
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
     
-    all_terms = tatasteelClient.field_terms('term_candidates_ss')
+    all_terms = tatasteelClient.field_terms('test')
     print(all_terms)
     print(len(all_terms))
+
+def test_field_analysis():
     
+    tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
+    normed_term = tatasteelClient.field_analysis(term="manganese-alumino-silicates")
+    print(normed_term)
+
+def test_get_industry_term_field_analysis():
+    tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
+    normed_term = tatasteelClient.get_industry_term_field_analysis("subjective assessments")
+    print("normed term: ", normed_term)
     
 if __name__ == '__main__':
     
     #test_term_vectors()
     #test_load_documents()
     #test_batch_update_json_docs()
-    test_totaltermfreq()
+    #test_totaltermfreq()
     #test_field_terms()
+    
+    #test_field_analysis()
+    #test_query_indexed_terms_by_docId()
+    
+    test_get_industry_term_field_analysis()
+    
+    '''
+    tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
+    print(tatasteelClient.solr_core)
+    '''
