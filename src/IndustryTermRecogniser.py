@@ -174,8 +174,9 @@ class IndustryTermRecogniser(object):
                         industry_terms=doc[FIELD_INDUSTRY_TERM]
                     
                     filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
-                    industry_terms.append(filtered_candidates)
-                       
+                    industry_terms.extend(filtered_candidates)
+                    
+                    #print("final industry_terms:", industry_terms)
                     doc[FIELD_INDUSTRY_TERM] = list(set(industry_terms))
                     
                     cur_docs_to_commits.append(doc)

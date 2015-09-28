@@ -75,7 +75,7 @@ term_variants_export_file_name=term_variants
 [DICTIONARY_TAGGER]
 # disabling this setting will not perform dictionary tagging
 # options: true|false
-dict_tagging=true
+dict_tagging=false
 
 # support one dictionary file to tag the indexed documents
 # dictionary file must be in csv format with two columns (term name and descriptions). MUST NOT INCLUDE HEADDING IN FIRST ROW.
