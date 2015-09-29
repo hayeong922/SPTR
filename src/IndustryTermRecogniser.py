@@ -27,6 +27,9 @@ from FileUtil import path_leaf
 import math
 from multiprocPool import MultiprocPool
 
+#content field from where industry terms will be extracted
+FIELD_CONTENT="content"
+FIELD_DOC_ID="id"
 FIELD_TERM_CANDIDATES="term_candidates_tvss"
 FIELD_INDUSTRY_TERM="industryTerm"
 FIELD_DICTIONARY_TERM="dictTerm_ss"
@@ -75,6 +78,12 @@ class IndustryTermRecogniser(object):
             FIELD_TERM_CANDIDATES = config['DEFAULT']['solr_field_term_candidates']
         except KeyError:
             self._logger.exception("Oops! 'solr_field_term_candidates' is not found in config file. Default to [%s]", FIELD_TERM_CANDIDATES)
+        
+        global FIELD_CONTENT
+        try:            
+            FIELD_CONTENT = config['DEFAULT']['solr_field_content']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_field_content' is not found in config file. Default to [%s]", FIELD_CONTENT)
             
         global FIELD_INDUSTRY_TERM
         try:            
@@ -133,9 +142,6 @@ class IndustryTermRecogniser(object):
         final_term_set = [term_tuple[0] for term_tuple in ranked_term_tuple_list if term_tuple[1] > self.cut_off_threshold]
         
         self._logger.info("final term size after cut-off [%s]", str(len(final_term_set)))
-        
-        #TODO: use the c-value to boost term
-        #TODO: may also only index the ID of term and retrieve term name and synonyms at query time
         
         self.final_term_set_indexing(final_term_set)
         term_db_path = self.save_ranked_candidates_to_db(self.solrClient.solr_core, ranked_term_tuple_list)
@@ -244,7 +250,7 @@ class IndustryTermRecogniser(object):
 
     def synonym_aggregation(self, terms=set()):
         '''
-        interlinking terms with similarity computation and aggregate  
+        Term variants identification: interlinking terms with normalisation, similarity computation and aggregate  
         1) case insensitivity matching;
         2) ASCII-equivalent matching () ;
         3) Diacritic-elimination matching ()
@@ -327,11 +333,18 @@ class TermRanker(object):
             self.parallel_workers=config['DEFAULT']['PARALLEL_WORKERS']
         except KeyError:
             self._logger.exception("Oops! 'PARALLEL_WORKERS' is not found in config file. Running with 1 worker instead.")
-            #raise Exception("Please check 'PARALLEL_WORKERS' is properly configured!")
             self.parallel_workers = 1
+        
+        try:
+            self.field_doc_id=config['DEFAULT']['solr_field_doc_id']
+        except KeyError:
+            self._logger.exception("Oops! 'solr_field_doc_id' is not found in config file. Default to 'id' field instead.")
+            self.field_doc_id = 'id'
     
     def batch_candidate_tagging(self):
-        #*_ss
+        '''
+        batch term candidate tagging + dictionary tagging (optional)
+        '''
         totalDocSize = self.solrClient.total_document_size()
         
         self._logger.info("total document size for candidate term tagging [%s]"%totalDocSize)
@@ -346,8 +359,8 @@ class TermRanker(object):
             #TODO: parallel annotation
             cur_docs_to_commits=[]
             for doc in docs:
-                content = doc['content']
-                doc_id = doc['id']
+                content = doc[FIELD_CONTENT]
+                doc_id = doc[self.field_doc_id]
                 #lang= doc['language_s']
                 #skip non-english ?
                 '''
@@ -369,6 +382,9 @@ class TermRanker(object):
         self._logger.info("Term candidate extraction and loading for whole index is completed!")
         
     def get_all_candidates(self):
+        '''
+        query all indexed terms from FIELD_TERM_CANDIDATES
+        '''
         all_candidates = self.solrClient.field_terms(FIELD_TERM_CANDIDATES)
         return all_candidates
     
@@ -383,7 +399,7 @@ class TermRanker(object):
     
     @staticmethod
     def sum_ttf_candidates(solrClient, candidates_list):
-        candidates_ttf_dict, normed_candidates_dict =solrClient.totaltermfreq('content', set(candidates_list))
+        candidates_ttf_dict, normed_candidates_dict =solrClient.totaltermfreq(FIELD_CONTENT, set(candidates_list))
         return sum(candidates_ttf_dict.values())        
     
     def process(self, tagging=True):
@@ -395,6 +411,8 @@ class TermRanker(object):
 class CValueRanker(TermRanker):
     '''
     C-Value ranking method (candidate extraction can be independent from the ranking algorithm)
+    
+    Frantzi, K., Ananiadou, S., & Mima, H. (2000). Automatic recognition of multi-word terms:. the C-value/NC-value method. International Journal on Digital Libraries, 3(2), 115-130.
     '''
     def __init__(self, solrClient):
         super().__init__(solrClient)
@@ -415,7 +433,9 @@ class CValueRanker(TermRanker):
     @staticmethod
     def get_longer_terms(term, all_candidates):
         '''
-        the number of candidate terms that contain current term 
+        the number of candidate terms that contain current term
+        
+        Simply term normalisation is applied. Could be extended with "solr_term_normaliser"
         params:
             term, current term surface form
             all candidates: all candidates surface form from index
@@ -434,8 +454,9 @@ class CValueRanker(TermRanker):
     
     def ranking(self):
         '''
-        C-Value ranking
-        return tuple list, (term, c-value)
+        C-Value parallel term ranking
+        
+        return tuple list: (term, c-value)
         '''
         self._logger.info("term candidate c-value ranking...")
         
@@ -443,10 +464,10 @@ class CValueRanker(TermRanker):
         all_candidates = super().get_all_candidates()
         self._logger.info("all candidates is loaded. Total [%s] candidates to rank...", len(all_candidates))
         self._logger.info(" compute c-values for all candidates with [%s] parallel workers ...", self.parallel_workers)
-        #ranked_all_candidates=[self.calculate(candidate, all_candidates)for candidate in all_candidates]
+        
         with MultiprocPool(processes=int(self.parallel_workers)) as pool:
-            option_parameter={'rankingMethod':'cValue', 'all_candidates':all_candidates}
-            ranked_all_candidates=pool.starmap(term_weight_async_calculation, [(self.solrClient.solrURL, candidate, option_parameter) for candidate in all_candidates])
+            optional_parameter={'rankingMethod':'cValue', 'all_candidates':all_candidates}
+            ranked_all_candidates=pool.starmap(term_weight_async_calculation, [(self.solrClient.solrURL, candidate, optional_parameter) for candidate in all_candidates])
                
         self._logger.info(" all candidates c-value computation is completed.")
         
@@ -464,8 +485,8 @@ class CValueRanker(TermRanker):
         solrClient = SolrClient(solr_core_url)
         
         longer_terms = CValueRanker.get_longer_terms(term, all_candidates)
-        term_freq_dict,normed_term_dict = solrClient.totaltermfreq('content', {term})
-        #print(term_freq)
+        term_freq_dict,normed_term_dict = solrClient.totaltermfreq(FIELD_CONTENT, {term})
+        
         term_freq = list(term_freq_dict.values())[0]
         
         #print("term freq of '",term,"': ", term_freq)

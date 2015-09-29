@@ -1,8 +1,7 @@
 '''
-Created on 15 Sep 2015
-
-@author: jieg
+A mix of utilities
 '''
+
 class TermUtil(object):
     @staticmethod
     def normalise(term):

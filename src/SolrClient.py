@@ -95,10 +95,8 @@ class TermVectorResult(object):
     def __init__(self,field,response=None,decoder=None):
         self.decoder = decoder or json.JSONDecoder()
         
-        #result = self.decoder.decode(response.decode("utf-8"))
         result = response
-        
-        #print("result", result)        
+            
         # term vectors from /tvrh
         if 'termVectors' in result:
             tv = result['termVectors']
@@ -115,7 +113,7 @@ class TermVectorResult(object):
     
 class SolrClient(object):
     '''
-    Example from https://github.com/Parsely/python-solr/blob/master/pythonsolr/pysolr.py
+    Solr client APIs
     '''
     solrURL="http://localhost:8983/solr/tatasteel"
     
@@ -237,25 +235,23 @@ class SolrClient(object):
         
         http://localhost:8983/solr/tatasteel/terms?terms.fl=content&terms.regex=^(.*?(\bsurface%20defects\b)[^$]*)$&terms.regex.flag=case_insensitive&terms.sort=count&terms.limit=10000
         '''
-        longerTerms={}
-        
-        return longerTerms
+        raise NotImplementedError("No supported!")
     
     def totaltermfreq(self,field, terms={}):
         '''
-        This function uses Solr ttf functionQuery to total term (ngram) frequency in whole index
+        This function uses Solr ttf functionQuery to get total term (ngram) frequency in whole index
         
         Notes: the field query analyser significantly affects the ttf function query. To get accurate result, recommendation setting is to avoid solr.StopFilterFactory.
         Recommendation analyser : solr.StandardTokenizerFactory/solr.WhitespaceTokenizerFactory -> 
-                                solr.PatternReplaceCharFilterFactory/solr.HyphenatedWordsFilterFactory ->
+                                solr.PatternReplaceCharFilterFactory('-'->' ')/solr.HyphenatedWordsFilterFactory ->
                                 solr.LowerCaseFilterFactory -> 
                                 solr.ASCIIFoldingFilterFactory -> 
                                 solr.EnglishMinimalStemFilterFactory
         The analyser pipeline should apply to both content indexing (before solr.ShingleFilterFactory) and term normalisation (recommended setting is to configure a analyser [see SolrClient.get_industry_term_field_analysis])
         
-        if mutiple terms is requested, the result may return less result than requested as only normalised term will be returned.
+        if multiple terms is requested, the result may return less result than requested as only normalised term will be returned.
         param:
-            field, indexed term (lower case + hyphen normalised) to query
+            field, content field where term total frequency will be counted 
             terms, a set of terms to query total frequency from the 'field'
             
         return tuple of two dictionaries: 1) term ttf dictionary with normalised term as key and ttf as value
@@ -318,18 +314,6 @@ class SolrClient(object):
         
         return analysis_result
     
-    '''
-    def get_phonetic_norm_by_field_analysis(self, term, field_type="industry_term_type"):
-        analysis_result = self.field_analysis(term, field_type="industry_term_type")
-        #print(analysis_result)
-        if 'org.apache.lucene.analysis.phonetic.PhoneticFilter' in analysis_result:
-            phonetic_norm = analysis_result['org.apache.lucene.analysis.phonetic.PhoneticFilter'][0]['text']
-        else:
-            #TODO: change it!!!
-            phonetic_norm = analysis_result['org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter'][0]['text']
-            
-        return phonetic_norm
-    '''
     def get_industry_term_field_analysis(self, term, pfield_type=None):
         pfield_type = self.solr_term_normaliser if pfield_type is None else pfield_type
         try:
@@ -339,12 +323,11 @@ class SolrClient(object):
         
         normed_term = ' '.join([term_unit_res['text'] for term_unit_res in analysis_result['org.apache.lucene.analysis.en.EnglishMinimalStemFilter']])
         
-        #normed_term=analysis_result['org.apache.lucene.analysis.en.EnglishMinimalStemFilter'][0]['text']
         return normed_term
     
     def get_accent_folding_norm_by_field_analysis(self, term, field_type="industry_term_type"):
         analysis_result = self.field_analysis(term, field_type="industry_term_type")
-        #print(analysis_result)
+        
         accent_folding_norm = analysis_result['org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter'][0]['text']
         return accent_folding_norm
         
@@ -365,7 +348,6 @@ class SolrClient(object):
         Extract the actual error message from a solr response. Unfortunately,
         this means scraping the html.
         """
-        #print("response:", response)
         reason = ER_RE.search(response)
         if reason:
             reason = reason.group()
@@ -410,7 +392,7 @@ def list2dict(data):
 
 def nested_list2dict(data):
     d = list2dict(data)
-    #print("d:",d)
+    
     if isinstance(d, dict):
         for k, v in d.items():
             if isinstance(v, list):

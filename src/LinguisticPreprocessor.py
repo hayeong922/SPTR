@@ -20,10 +20,7 @@ class LinguisticPreprocessor(object):
     
     def __init__(self):
         import logging
-        '''
-        if self.default_tagger is None:
-            self.default_tagger = self.get_perceptron_tagger()
-        '''
+        
         self._logger=logging.getLogger(__name__)
         
     def preprocessing(self, content):
@@ -38,8 +35,7 @@ class LinguisticPreprocessor(object):
         
     def customised_preprocessing(self, sent_content):
         '''
-        customised tokeniser for irregular text
-        NLTK pos tagging
+        customised tokeniser for irregular text + NLTK pos tagging
         return normalised pos tagging in tuple list 
         '''
         if self.text_tokeniser is None:
@@ -48,6 +44,7 @@ class LinguisticPreprocessor(object):
             self.pos_tagging = self.nltk_pos_tag()
             
         pos_tags= self.pos_tagging(self.text_tokeniser.tokenize(sent_content))
+        
         return tuple(map(lambda x: (x[0], x[0]) if x[0]=='(' or x[0]==')' or x[0] == '@' or x[0] == '\\' or x[0] == '/' else (x[0], x[1]), pos_tags))
         
     def get_perceptron_tagger(self):
@@ -63,7 +60,7 @@ class LinguisticPreprocessor(object):
 
     def get_special_text_tokeniser(self):
         '''
-        for special cases: e.g., 3rd, 2nd,1-23-4562, 425-12-3456, wal-mart
+        Customised NLTK Regex Tokeniser for special cases: e.g., 3rd, 2nd,1-23-4562, 425-12-3456, wal-mart
         TODO: try to use solr StandardTokenizer 
         '''
         from nltk.tokenize.regexp import RegexpTokenizer
@@ -88,7 +85,9 @@ class LinguisticPreprocessor(object):
     
     def nltk_pos_tag(self):
         """
-            pos_tag(self.get_special_text_tokeniser().tokenize(sent_content))
+        Use NLTK's currently recommended part of speech tagger to tag the given list of tokens.
+        
+        Usage:    pos_tag(self.get_special_text_tokeniser().tokenize(sent_content))
         """
         from nltk import pos_tag
         return pos_tag    
