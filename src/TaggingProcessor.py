@@ -304,6 +304,7 @@ class TaggingProcessor(object):
             
         self._logger.debug("term_candidates size after PoS filtering: [%s]", len(term_candidates))
         term_candidates = self.linguistic_filter(term_candidates)
+        #print(term_candidates)
         term_candidates = self.frequency_filtering(term_candidates)
         
         self._logger.debug("Term candidate extraction for current doc is completed.")
@@ -356,11 +357,11 @@ class TaggingProcessor(object):
         
         return True
     
-    def linguistic_filter(self, candidate_set=set()):
+    def Linlinguistic_filter(self, candidate_set=set()):
         """
         linguistic based term candidates filtering
         
-        1) stopword based filtering: any word in candidates matched with the stopwords will be removed!
+        1) stopword based filtering: less aggressive stop word filtering
         2) ngram range filtering
         3) minimum character filtering: none of term unit length less than minimum char length
         
@@ -412,7 +413,8 @@ def test_term_candidate_extraction():
     #content="Absolute maximum length cold is 9.350m  Absolute minimum cold length is  5.700m Except for rail steels which are ordered to a dead length. TBM 4500 to 4750mm  5550 to 7000mm 7800 to 9600mm Hot Usable Lengths  4545 to 4795mm 5605 to 7070mm 7875 to 9695 mm       Any longer must be cropped back Any shorter than 4500 will  be scrap Any between the length ranges above are in the furnace dead lengths and  should be cropped back to take length into the acceptable range."
     #content="If the strand is capped off or lost during the sequence  revert to the next available strand."
     #content=" \n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   Web Void Defects - Position in Rail\r\n  "
-    content="They do have the two casts above 1.6ppm in them but these can be printed  and rescanned. Regards Rob Robert B Lambert/UK/Corus  \t \tTo \tdavidjonesconsulting@toucansurf.com \tcc \t \tSubject \tFinal Analyses for both Indian Rail Sequences \t \t \t \t \t David, Please find below pdfs of final results for all Indian rail order casts. [rattachement 81249-81251.pdf supprime par Pascale BONNET/FR/Corus]"
+    #content="They do have the two casts above 1.6ppm in them but these can be printed  and rescanned. Regards Rob Robert B Lambert/UK/Corus  \t \tTo \tdavidjonesconsulting@toucansurf.com \tcc \t \tSubject \tFinal Analyses for both Indian Rail Sequences \t \t \t \t \t David, Please find below pdfs of final results for all Indian rail order casts. [rattachement 81249-81251.pdf supprime par Pascale BONNET/FR/Corus]"
+    content="We will then endeavour to break the sample along a  crack and look for evidence of aluminium nitrides, just in case there is  residual aluminium from the standard ferro-alloy additions (but is  unlikely)."
     term_candidates = taggingProcessor.term_candidate_extraction(content)
     print("term_candidates: ", term_candidates)
     
@@ -433,7 +435,7 @@ if __name__ == '__main__':
     import logging.config
     logging.config.fileConfig(os.path.join(os.path.dirname(__file__), '..', 'config', 'logging.conf'))
     
-    #test_term_candidate_extraction()
-    test_term_dictionary_tagging()
+    test_term_candidate_extraction()
+    #test_term_dictionary_tagging()
     
     

@@ -84,6 +84,18 @@ class IndustryTermRecogniser(object):
             FIELD_CONTENT = config['DEFAULT']['solr_field_content']
         except KeyError:
             self._logger.exception("Oops! 'solr_field_content' is not found in config file. Default to [%s]", FIELD_CONTENT)
+        
+        try:
+            self.index_dict_term_with_industry_term=config['DICTIONARY_TAGGER']['index_dict_term_with_industry_term']
+            if "true" == self.index_dict_term_with_industry_term.lower():
+                self.index_dict_term_with_industry_term = True
+            elif "false" == self.index_dict_term_with_industry_term.lower():
+                self.index_dict_term_with_industry_term = False
+            else:
+                raise Exception("current setting [%s] for 'tagging' is not supported!"%self.tagging)
+        except KeyError:
+            self._logger.exception("Oops! 'index_dict_term_with_industry_term' is set incorrectly in config file. Default to set true")
+            self.index_dict_term_with_industry_term = True
             
         global FIELD_INDUSTRY_TERM
         try:            
@@ -176,7 +188,7 @@ class IndustryTermRecogniser(object):
                     term_candidates = doc[FIELD_TERM_CANDIDATES]
                     filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
                     
-                    if FIELD_DICTIONARY_TERM in doc:
+                    if self.index_dict_term_with_industry_term and FIELD_DICTIONARY_TERM in doc:
                         dict_terms = doc[FIELD_DICTIONARY_TERM]
                         if dict_terms:
                             filtered_candidates.extend(dict_terms)

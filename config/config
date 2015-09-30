@@ -6,16 +6,18 @@ pos_sequence_filter=../config/pos_sequence_filter3
 stopwords=../config/stoplist.txt
 
 # Maximum number of words allowed in a multi-word term. Default value is 6
-# must also set gram size range for solr.ShingleFilterFactory in solr schema.xml
+# must also be compatible with ngram size range for solr.ShingleFilterFactory in solr schema.xml
 max_tokens=5
 # Minimum number of words allowed in a multi-word term. Default value is 1
 # must also set gram size range for solr.ShingleFilterFactory in solr schema.xml
 min_tokens=1
 
 #Minimum number of characters allowed in any term candidates units. Default value is 2
+#increase for better precision
 min_char_length=1
 
 #Minimum frequency allowed for term candidates. Default value is 2
+#increase for better precision
 min_term_freq=2
 
 # Maximum number of processes (for annotation and dictionary tagging) that can run at the same time.
@@ -83,9 +85,13 @@ dict_tagging=true
 # MUST NOT INCLUDE HEADDING IN FIRST ROW.
 dictionary_file=../config/Steel-Terminology-Tata-Steel.csv
 
-#Disable this will perform exact matching
-#Exact matching is based on normalised term forms (see solr_term_normaliser above)
+# Disable this will perform exact matching
+# Exact matching is based on normalised term forms (see solr_term_normaliser above)
+# The dictionary tagger is enabled with term recognition methods by default which can recognise term variants (e.g., case insensitive, accent folding, etc.).
+# Fuzzy matching is to find dictionary terms that match the pattern approximately with the cost of extra computation.
+# Fuzzy matching here is based on normalised Levenshtein Distance. Enable this can help to recognise misspelling and the linking of similar terms.
 dict_tagger_fuzzy_matching=false
+
 #similarity threshold (range: [0-1]) for fuzzy matching
 dict_tagger_sim_threshold=0.86
 
