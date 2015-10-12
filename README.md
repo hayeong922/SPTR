@@ -13,6 +13,7 @@ The tool supports various configurations including Part-Of-Tagging sequence patt
 To pre-process and index content for candidate extraction, a solr schema.xml needs 2 things:
  * A unique key field
  * A content field (from where terms are extracted) indexed with Term Recognition (TR) aware Analyser Chain
+ 
 	For term ranking, the content field's index analyzer needs to end in shingling (solr.ShingleFilterFactory). Term vectors must be enabled so that term statistics can be queried and used for ranking algorithms.Term Offsets can also be enabled to allow term highlighting.
 	
  Here is a sample TR aware content field type config :
@@ -45,8 +46,9 @@ To pre-process and index content for candidate extraction, a solr schema.xml nee
 		</fieldType>
 
  And, a sample of content filed configured with the analyser:
-		<!-- Main body of document extracted by SolrCell. -->
-		<field name="content" type="text_tr_general" indexed="true" stored="true" multiValued="false" termVectors="true" termPositions="true" termOffsets="true"/>
+	
+	<!-- Main body of document extracted by SolrCell. -->
+	<field name="content" type="text_tr_general" indexed="true" stored="true" multiValued="false" termVectors="true" termPositions="true" termOffsets="true"/>
 
 In term extraction phrase, a solr schema.xml needs 2 things:
  * A multiValued string field for storing term candidates 
@@ -55,37 +57,37 @@ In term extraction phrase, a solr schema.xml needs 2 things:
  * A field for storing final terms
 		
  A sample config of term candidate field :
-		<!-- A dynamicField field can be configured for terms needs be indexed and stored with term vectors and offsets.-->
-		<dynamicField name="*_tvss" type="string" indexed="true"  stored="true" multiValued="true" termVectors="true" termPositions="true" termOffsets="true"/>
+	<!-- A dynamicField field can be configured for terms needs be indexed and stored with term vectors and offsets.-->
+	<dynamicField name="*_tvss" type="string" indexed="true"  stored="true" multiValued="true" termVectors="true" termPositions="true" termOffsets="true"/>
 	
  A sample config of term solr normaliser:
-		<fieldType name="industry_term_normaliser" class="solr.TextField" positionIncrementGap="100">
-			<analyzer>
-				<tokenizer class="solr.StandardTokenizerFactory" />
-				<!--<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\-)" replacement=" " />-->
-				
-				<!-- setting of WordDelimiterFilterFactory is useful for compound words. Can be enabled to make sure tokens like "bloom485" or "TermRecognition" are split in order to improve accuracy. This can also be used to improve subsequent POS tagging and allow stop words like "year" to be matched
-				-->
-				<!-- see details via https://lucene.apache.org/core/4_6_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/WordDelimiterFilter.html -->
-				<!-- <filter class="solr.WordDelimiterFilterFactory" protected="protectedword.txt" generateWordParts="1" generateNumberParts="1" catenateWords="1" catenateNumbers="1" catenateAll="0" splitOnCaseChange="1"/> -->
-				<filter class="solr.LowerCaseFilterFactory"/>
-				<filter class="solr.ASCIIFoldingFilterFactory"/>
-				<filter class="solr.EnglishMinimalStemFilterFactory"/>
-			 </analyzer>
-		</fieldType>
+	<fieldType name="industry_term_normaliser" class="solr.TextField" positionIncrementGap="100">
+		<analyzer>
+			<tokenizer class="solr.StandardTokenizerFactory" />
+			<!--<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\-)" replacement=" " />-->
+			
+			<!-- setting of WordDelimiterFilterFactory is useful for compound words. Can be enabled to make sure tokens like "bloom485" or "TermRecognition" are split in order to improve accuracy. This can also be used to improve subsequent POS tagging and allow stop words like "year" to be matched
+			-->
+			<!-- see details via https://lucene.apache.org/core/4_6_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/WordDelimiterFilter.html -->
+			<!-- <filter class="solr.WordDelimiterFilterFactory" protected="protectedword.txt" generateWordParts="1" generateNumberParts="1" catenateWords="1" catenateNumbers="1" catenateAll="0" splitOnCaseChange="1"/> -->
+			<filter class="solr.LowerCaseFilterFactory"/>
+			<filter class="solr.ASCIIFoldingFilterFactory"/>
+			<filter class="solr.EnglishMinimalStemFilterFactory"/>
+		 </analyzer>
+	</fieldType>
 	
  A sample config of final(filtered) terms:
-		<field name="industryTerm" type="industry_term_type" indexed="true" stored="true" multiValued="true" omitNorms="true" termVectors="true"/>
-		<!-- Experimental field used for normalised term via term variations analysis -->
-		<fieldType name="industry_term_type" class="solr.TextField" positionIncrementGap="100">
-			<analyzer>
-				<tokenizer class="solr.KeywordTokenizerFactory"/>		
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\-)" replacement=" " />		
-				<filter class="solr.LowerCaseFilterFactory"/>
-				<filter class="solr.ASCIIFoldingFilterFactory"/>
-				<filter class="solr.EnglishMinimalStemFilterFactory"/>
-			 </analyzer>
-		</fieldType>
+	<field name="industryTerm" type="industry_term_type" indexed="true" stored="true" multiValued="true" omitNorms="true" termVectors="true"/>
+	<!-- Experimental field used for normalised term via term variations analysis -->
+	<fieldType name="industry_term_type" class="solr.TextField" positionIncrementGap="100">
+		<analyzer>
+			<tokenizer class="solr.KeywordTokenizerFactory"/>		
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\-)" replacement=" " />		
+			<filter class="solr.LowerCaseFilterFactory"/>
+			<filter class="solr.ASCIIFoldingFilterFactory"/>
+			<filter class="solr.EnglishMinimalStemFilterFactory"/>
+		 </analyzer>
+	</fieldType>
 	
 A Solr solrconfig.xml must be configured with Field Analysis Request Handler and can be configured with Solr Cell Update Request Handler (recommeded) and Language identification as an option.
 
