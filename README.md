@@ -11,12 +11,11 @@ The core of ATR is based on C-Value algorithm and contrastive corpus analysis. F
 The tool supports various configurations including Part-Of-Tagging sequence patterns for term candidate submission forms, pre-filtering and cut-off threshold based post filtering. The tool also suppors dictionary tagging with exact matching and fuzzy matching configurable. To be processed by the ATR tool, the corpus must be processed by Solr with TR aware anlayser chain as pre-requisite for subsequent term extraction. TR aware anlayser chain can be configured in various ways so as to allow domain-specific customisation.
 
 To pre-process and index content for candidate extraction, a solr schema.xml needs 2 things:
-	* A unique key field
-	* A content field (from where terms are extracted) indexed with Term Recognition (TR) aware Analyser Chain
-		
-		For term ranking, the content field's index analyzer needs to end in shingling (solr.ShingleFilterFactory). Term vectors must be enabled so that term statistics can be queried and used for ranking algorithms.Term Offsets can also be enabled to allow term highlighting.
+ * A unique key field
+ * A content field (from where terms are extracted) indexed with Term Recognition (TR) aware Analyser Chain
+	For term ranking, the content field's index analyzer needs to end in shingling (solr.ShingleFilterFactory). Term vectors must be enabled so that term statistics can be queried and used for ranking algorithms.Term Offsets can also be enabled to allow term highlighting.
 	
-	Here is a sample TR aware content field type config :
+ Here is a sample TR aware content field type config :
 	
 		<fieldType name="text_tr_general" class="solr.TextField" positionIncrementGap="100">
 			<analyzer type="index">
@@ -45,21 +44,21 @@ To pre-process and index content for candidate extraction, a solr schema.xml nee
 			</analyzer>
 		</fieldType>
 
-	And, a sample of content filed configured with the analyser:
+ And, a sample of content filed configured with the analyser:
 		<!-- Main body of document extracted by SolrCell. -->
 		<field name="content" type="text_tr_general" indexed="true" stored="true" multiValued="false" termVectors="true" termPositions="true" termOffsets="true"/>
 
 In term extraction phrase, a solr schema.xml needs 2 things:
-	* A multiValued string field for storing term candidates 
-	* A solr analyser chain to normalise term candidates for ranking accuracy
+ * A multiValued string field for storing term candidates 
+ * A solr analyser chain to normalise term candidates for ranking accuracy
 		This needs to be consistent with content index analyser so that indexed n-grams will be matched with term candidates.
-	* A field for storing final terms
+ * A field for storing final terms
 		
-	A sample config of term candidate field :
+ A sample config of term candidate field :
 		<!-- A dynamicField field can be configured for terms needs be indexed and stored with term vectors and offsets.-->
 		<dynamicField name="*_tvss" type="string" indexed="true"  stored="true" multiValued="true" termVectors="true" termPositions="true" termOffsets="true"/>
 	
-	A sample config of term solr normaliser:
+ A sample config of term solr normaliser:
 		<fieldType name="industry_term_normaliser" class="solr.TextField" positionIncrementGap="100">
 			<analyzer>
 				<tokenizer class="solr.StandardTokenizerFactory" />
@@ -75,7 +74,7 @@ In term extraction phrase, a solr schema.xml needs 2 things:
 			 </analyzer>
 		</fieldType>
 	
-	A sample config of final(filtered) terms:
+ A sample config of final(filtered) terms:
 		<field name="industryTerm" type="industry_term_type" indexed="true" stored="true" multiValued="true" omitNorms="true" termVectors="true"/>
 		<!-- Experimental field used for normalised term via term variations analysis -->
 		<fieldType name="industry_term_type" class="solr.TextField" positionIncrementGap="100">
@@ -91,37 +90,37 @@ In term extraction phrase, a solr schema.xml needs 2 things:
 A Solr solrconfig.xml must be configured with Field Analysis Request Handler and can be configured with Solr Cell Update Request Handler (recommeded) and Language identification as an option.
 
 ## Usage
-	The Term Recognition tool is run as a batch processing job and can be triggered by a simple shell script in Linux.
+ The Term Recognition tool is run as a batch processing job and can be triggered by a simple shell script in Linux.
 	
-		./industry_term_enrichment.sh
+	./industry_term_enrichment.sh
 	
 ### The run-time parameters are
-	* pos_sequence_filter: a text file providing part-of-speech(pos) sequence pattern for filtering term candidate lexical units
-	* stopwords: stop words list for filtering term candidates in a minimal manner
-	* max_tokens: Maximum number of words allowed in a multi-word term; must also be compatible with ngram size range for solr.ShingleFilterFactory in solr schema.xml;
-	* min_tokens: Minimum number of words allowed in a multi-word term; must also be compatible with ngram size range for solr.ShingleFilterFactory in solr schema.xml;
-	* max_char_length: Minimum number of characters allowed in any term candidates units
-	* min_char_length: Minimum number of characters allowed in any term candidates units;increase for better precision
-	* min_term_freq: Minimum frequency allowed for term candidates; increase for better precision
-	* PARALLEL_WORKERS: Maximum number of processes (for annotation and dictionary tagging) that can run at the same time
-	* cut_off_threshold: cut-off threshold (exclusive) for term recognition
+ * pos_sequence_filter: a text file providing part-of-speech(pos) sequence pattern for filtering term candidate lexical units
+ * stopwords: stop words list for filtering term candidates in a minimal manner
+ * max_tokens: Maximum number of words allowed in a multi-word term; must also be compatible with ngram size range for solr.ShingleFilterFactory in solr schema.xml;
+ * min_tokens: Minimum number of words allowed in a multi-word term; must also be compatible with ngram size range for solr.ShingleFilterFactory in solr schema.xml;
+ * max_char_length: Minimum number of characters allowed in any term candidates units
+ * min_char_length: Minimum number of characters allowed in any term candidates units;increase for better precision
+ * min_term_freq: Minimum frequency allowed for term candidates; increase for better precision
+ * PARALLEL_WORKERS: Maximum number of processes (for annotation and dictionary tagging) that can run at the same time
+ * cut_off_threshold: cut-off threshold (exclusive) for term recognition
 	
-	* solr_core_url: Solr index core
-	* solr_field_content: solr content field from where terminology and frequency information will be queried and analysed. Terminology Recognition aware NLP pipeline must be configured for this field.
-	* solr_field_doc_id: solr document unique identifier field, default to 'id'
-	* solr_term_normaliser: The solr terminology normalisation analyser
-	* solr_field_term_candidates: solr field where term candidates will be stored and indexed
-	* solr_field_industry_term: solr field where final filtered terms will be stored and indexed
+ * solr_core_url: Solr index core
+ * solr_field_content: solr content field from where terminology and frequency information will be queried and analysed. Terminology Recognition aware NLP pipeline must be configured for this field.
+ * solr_field_doc_id: solr document unique identifier field, default to 'id'
+ * solr_term_normaliser: The solr terminology normalisation analyser
+ * solr_field_term_candidates: solr field where term candidates will be stored and indexed
+ * solr_field_industry_term: solr field where final filtered terms will be stored and indexed
 	
 	
-	* tagging: a boolean config allows turn on and off term candidate extraction. Disabling this setting will only executing ranking for candidates and indexing filtered candidates
-	* export_term_candidates: a boolean config allows to turn on and off term candidate export. Exporting (all) term candidates can help to evaluate and choose a suitable cut-off threshold.
-	* export_term_variants: a boolean config allows to turn on and off term variants export.
-	* term_variants_export_file_name: A file for exporting term (filtered terms) variants (CSV format by default) 
+ * tagging: a boolean config allows turn on and off term candidate extraction. Disabling this setting will only executing ranking for candidates and indexing filtered candidates
+ * export_term_candidates: a boolean config allows to turn on and off term candidate export. Exporting (all) term candidates can help to evaluate and choose a suitable cut-off threshold.
+ * export_term_variants: a boolean config allows to turn on and off term variants export.
+ * term_variants_export_file_name: A file for exporting term (filtered terms) variants (CSV format by default) 
 	
-	* dict_tagging: a boolean config allows to turn on and off dictionary tagging
-	* dictionary_file: One term dictionary file is configured here to tag the indexed documents. The dictionary file must be in csv format with two columns (term surface form and descriptions) and must not include heading in first row.
-	* dict_tagger_fuzzy_matching: A boolean config to turn on and off fuzzy matching based on normalised Levenshtein distance.
-	* dict_tagger_sim_threshold: similarity threshold (range: [0-1]) for fuzzy matching
-	* solr_field_dictionary_term: The Solr field to where the dictionary matched terms will be indexed and stored.
-	* index_dict_term_with_industry_term: A boolean field to determine whether dictionary term can indexed either separately (different solr field) or with solr_field_industry_term	
+ * dict_tagging: a boolean config allows to turn on and off dictionary tagging
+ * dictionary_file: One term dictionary file is configured here to tag the indexed documents. The dictionary file must be in csv format with two columns (term surface form and descriptions) and must not include heading in first row.
+ * dict_tagger_fuzzy_matching: A boolean config to turn on and off fuzzy matching based on normalised Levenshtein distance.
+ * dict_tagger_sim_threshold: similarity threshold (range: [0-1]) for fuzzy matching
+ * solr_field_dictionary_term: The Solr field to where the dictionary matched terms will be indexed and stored.
+ * index_dict_term_with_industry_term: A boolean field to determine whether dictionary term can indexed either separately (different solr field) or with solr_field_industry_term	
