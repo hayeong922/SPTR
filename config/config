@@ -12,8 +12,14 @@ max_tokens=5
 # must also set gram size range for solr.ShingleFilterFactory in solr schema.xml
 min_tokens=1
 
+#Minimum number of characters allowed in any term candidates units. Default value is -1 (unlimited)
+#setting this value to overcome the erroneous PoS tagging or text processing in irregular text
+#TODO: support later
+max_char_length=-1
+
 #Minimum number of characters allowed in any term candidates units. Default value is 2
 #increase for better precision
+#TODO: what is the filtering strategy?
 min_char_length=1
 
 #Minimum frequency allowed for term candidates. Default value is 2
@@ -46,7 +52,7 @@ solr_field_doc_id=id
 # Recommended configuration for this analyser is consisted of solr.StandardTokenizerFactory -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.EnglishMinimalStemFilterFactory
 # "Field Analysis Request Handler" must also be enabled
 # An example configuration is in schema.xml and solrconfig.xml
-solr_term_normaliser=industry_term_query_type
+solr_term_normaliser=industry_term_normaliser
 
 # solr field where term candidates will be stored and indexed
 # THIS MUST ALSO BE CONFIGURED IN SOLR SCHEMA FOR MULTIVALUED FIELD INDEXED AND STORED WITH TERM VECTOR ENABLED
@@ -56,7 +62,7 @@ solr_field_term_candidates=term_candidates_tvss
 # solr field where final filtered terms will be stored and indexed
 # THIS MUST ALSO BE CONFIGURED IN SOLR SCHEMA FOR "industry_term_type" FIELD TYPE
 # "industry_term_type" should be configured for general term variation normalisation 
-# (Recommended setting: solr.KeywordTokenizerFactory -> solr.PatternReplaceCharFilterFactory ('-' -> ' ') -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.PhoneticFilterFactory)
+# (Recommended setting: solr.KeywordTokenizerFactory -> solr.PatternReplaceCharFilterFactory ('-' -> ' ') -> solr.LowerCaseFilterFactory -> solr.ASCIIFoldingFilterFactory -> solr.EnglishMinimalStemFilterFactory)
 # "industryTerm" field in "schema.xml" provides an example.
 solr_field_industry_term=industryTerm
 

@@ -326,6 +326,7 @@ def term_weight_async_calculation(solrURL, term, optional_params=dict()):
         raise Exception("Ranking Method is not supported!")        
         
 class TermRanker(object):
+    #TODO: may add additional algorithm, see http://www.nltk.org/howto/collocations.html
     def __init__(self, solr_client):
         self._logger=logging.getLogger(__name__)        
         
