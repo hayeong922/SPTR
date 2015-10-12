@@ -17,7 +17,7 @@ To pre-process and index content for candidate extraction, a solr schema.xml nee
 	For term ranking, the content field's index analyzer needs to end in shingling (solr.ShingleFilterFactory). Term vectors must be enabled so that term statistics can be queried and used for ranking algorithms.Term Offsets can also be enabled to allow term highlighting.
 	
  Here is a sample TR aware content field type config :
-	
+	```
 		<fieldType name="text_tr_general" class="solr.TextField" positionIncrementGap="100">
 			<analyzer type="index">
 				<!-- more friendly with technical terms, and good at parsing documents with terms like Oracle 8i/9i/10g/11g and DB2/UDB. -->
@@ -44,11 +44,13 @@ To pre-process and index content for candidate extraction, a solr schema.xml nee
 				<filter class="solr.EnglishMinimalStemFilterFactory"/>
 			</analyzer>
 		</fieldType>
-
+	```
  And, a sample of content filed configured with the analyser:
-	
-	<!-- Main body of document extracted by SolrCell. -->
+ 
+	```
+	<!--Main body of document extracted by SolrCell.-->
 	<field name="content" type="text_tr_general" indexed="true" stored="true" multiValued="false" termVectors="true" termPositions="true" termOffsets="true"/>
+	```
 
 In term extraction phrase, a solr schema.xml needs 2 things:
  * A multiValued string field for storing term candidates 
@@ -57,10 +59,15 @@ In term extraction phrase, a solr schema.xml needs 2 things:
  * A field for storing final terms
 		
  A sample config of term candidate field :
+ 
+	```
 	<!-- A dynamicField field can be configured for terms needs be indexed and stored with term vectors and offsets.-->
 	<dynamicField name="*_tvss" type="string" indexed="true"  stored="true" multiValued="true" termVectors="true" termPositions="true" termOffsets="true"/>
+	```
 	
  A sample config of term solr normaliser:
+ 
+	```
 	<fieldType name="industry_term_normaliser" class="solr.TextField" positionIncrementGap="100">
 		<analyzer>
 			<tokenizer class="solr.StandardTokenizerFactory" />
@@ -75,8 +82,10 @@ In term extraction phrase, a solr schema.xml needs 2 things:
 			<filter class="solr.EnglishMinimalStemFilterFactory"/>
 		 </analyzer>
 	</fieldType>
-	
+	```
  A sample config of final(filtered) terms:
+ 
+	```
 	<field name="industryTerm" type="industry_term_type" indexed="true" stored="true" multiValued="true" omitNorms="true" termVectors="true"/>
 	<!-- Experimental field used for normalised term via term variations analysis -->
 	<fieldType name="industry_term_type" class="solr.TextField" positionIncrementGap="100">
@@ -88,7 +97,7 @@ In term extraction phrase, a solr schema.xml needs 2 things:
 			<filter class="solr.EnglishMinimalStemFilterFactory"/>
 		 </analyzer>
 	</fieldType>
-	
+	```
 A Solr solrconfig.xml must be configured with Field Analysis Request Handler and can be configured with Solr Cell Update Request Handler (recommeded) and Language identification as an option.
 
 ## Usage
