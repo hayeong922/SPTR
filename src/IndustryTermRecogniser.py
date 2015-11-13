@@ -1,4 +1,4 @@
-'''
+"""
 Copyright &copy;2015 Sheffield University (OAK Group)
 All Rights Reserved.
 
@@ -6,7 +6,7 @@ Developer(s):
    Jie Gao (j.gao@sheffield.ac.uk)
 
 @author: jieg
-'''
+"""
 
 import sys
 import os
@@ -35,9 +35,9 @@ FIELD_INDUSTRY_TERM="industryTerm"
 FIELD_DICTIONARY_TERM="dictTerm_ss"
 
 class IndustryTermRecogniser(object):
-    '''
+    """
     This class perform industry term recognition based on Apache Solr    
-    '''
+    """
     def __init__(self, solr_url):
         
         self._logger=logging.getLogger(__name__)
@@ -143,9 +143,9 @@ class IndustryTermRecogniser(object):
         self.solrClient =  SolrClient(solr_url)
     
     def terminology_tagging(self):
-        '''
+        """
         candidate extraction (AUTOMATIC + DICTIONARY MATCHER) -> candidate ranking -> final term list indexing -> synonym aggregation -> update synonyms via API
-        '''
+        """
         self._logger.info("executing terminology recognition and tagging...")
         c_value_algorithm = CValueRanker(self.solrClient)
         ranked_term_tuple_list = c_value_algorithm.process(tagging=self.tagging)
@@ -166,9 +166,9 @@ class IndustryTermRecogniser(object):
         self._logger.info("terminology recognition and tagging are completed.")
         
     def final_term_set_indexing(self, final_term_set):
-        '''
+        """
         indexing filtered term candidates into 'industry_term_ss' field by the final term set
-        '''
+        """
         self._logger.info("indexing term set into '%s' ...", FIELD_INDUSTRY_TERM)
         totalDocSize = self.solrClient.total_document_size()
         
@@ -206,13 +206,13 @@ class IndustryTermRecogniser(object):
         self._logger.info("Industry Term extraction and indexing are completed!")
     
     def save_ranked_candidates_to_db(self, core_name, ranked_term_tuple_list):
-        '''
+        """
         save all ranked term candidates to sqllite db and export afterward for the sake of evaluation and cut-off threshold selection
         params:
             core_name,                solr core name
             ranked_term_tuple_list,   ranked term tuple list (term, weight) 
         return string, database path
-        '''
+        """
         
         db_path=os.path.join(os.path.dirname(__file__), '..', str(core_name)+"_term_candidates.db")
         self._logger.info("loading into terminology database [%s]", db_path)

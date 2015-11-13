@@ -38,6 +38,7 @@ sim_threshold=0.95
 
 # Index core
 solr_core_url=http://localhost:8983/solr/tatasteel
+# solr_core_url=http://oakanalysis.shef.ac.uk:8983/solr/tatasteel
 
 # solr content field from where terminology and frequency information will be queried and analysed
 # Terminology Recognition aware NLP pipeline must be configured for this field.
@@ -83,7 +84,7 @@ term_variants_export_file_name=term_variants
 [DICTIONARY_TAGGER]
 # disabling this setting will not perform dictionary tagging
 # options: true|false
-dict_tagging=true
+dict_tagging=false
 
 # SPTR provides a way to associate terminologies from a dictionary to text
 # One term dictionary file is supported to tag the indexed documents

@@ -381,6 +381,8 @@ irrelevant
 is
 it
 its
+It's
+it's
 itself
 january
 july

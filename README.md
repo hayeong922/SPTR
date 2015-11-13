@@ -18,32 +18,32 @@ To pre-process and index content for candidate extraction, a solr schema.xml nee
 	
  Here is a sample TR aware content field type config :
 	```
-		<fieldType name="text_tr_general" class="solr.TextField" positionIncrementGap="100">
-			<analyzer type="index">
-				<!-- more friendly with technical terms, and good at parsing documents with terms like Oracle 8i/9i/10g/11g and DB2/UDB. -->
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\.\s)" replacement=" " />
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\.$)" replacement=" " />
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\|)" replacement=" " />
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\/)" replacement=" " />
-				<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\\t)" replacement=" \\n " />
-				
-				<tokenizer class="solr.StandardTokenizerFactory" />
-				
-				<filter class="solr.LowerCaseFilterFactory" />
-				<filter class="solr.ASCIIFoldingFilterFactory"/>
-				<filter class="solr.EnglishMinimalStemFilterFactory"/>
-				<filter class="solr.ShingleFilterFactory" minShingleSize="2" maxShingleSize="6"
-						outputUnigrams="true" outputUnigramsIfNoShingles="false" tokenSeparator=" "/>
-			</analyzer>
-			<analyzer type="query">				
-				<tokenizer class="solr.StandardTokenizerFactory" />
-				<!-- <filter class="solr.StopFilterFactory" ignoreCase="false" words="stopwords.txt" enablePositionIncrements="true" /> -->
-				<filter class="solr.LowerCaseFilterFactory" />
-				<filter class="solr.SynonymFilterFactory" synonyms="synonyms.txt" ignoreCase="true" expand="true" />				
-				<filter class="solr.ASCIIFoldingFilterFactory"/>
-				<filter class="solr.EnglishMinimalStemFilterFactory"/>
-			</analyzer>
-		</fieldType>
+	<fieldType name="text_tr_general" class="solr.TextField" positionIncrementGap="100">
+		<analyzer type="index">
+			<!-- more friendly with technical terms, and good at parsing documents with terms like Oracle 8i/9i/10g/11g and DB2/UDB. -->
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\.\s)" replacement=" " />
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\.$)" replacement=" " />
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\|)" replacement=" " />
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\/)" replacement=" " />
+			<charFilter class="solr.PatternReplaceCharFilterFactory" pattern="(\\t)" replacement=" \\n " />
+			
+			<tokenizer class="solr.StandardTokenizerFactory" />
+			
+			<filter class="solr.LowerCaseFilterFactory" />
+			<filter class="solr.ASCIIFoldingFilterFactory"/>
+			<filter class="solr.EnglishMinimalStemFilterFactory"/>
+			<filter class="solr.ShingleFilterFactory" minShingleSize="2" maxShingleSize="6"
+					outputUnigrams="true" outputUnigramsIfNoShingles="false" tokenSeparator=" "/>
+		</analyzer>
+		<analyzer type="query">				
+			<tokenizer class="solr.StandardTokenizerFactory" />
+			<!-- <filter class="solr.StopFilterFactory" ignoreCase="false" words="stopwords.txt" enablePositionIncrements="true" /> -->
+			<filter class="solr.LowerCaseFilterFactory" />
+			<filter class="solr.SynonymFilterFactory" synonyms="synonyms.txt" ignoreCase="true" expand="true" />				
+			<filter class="solr.ASCIIFoldingFilterFactory"/>
+			<filter class="solr.EnglishMinimalStemFilterFactory"/>
+		</analyzer>
+	</fieldType>
 	```
  And, a sample of content filed configured with the analyser:
  

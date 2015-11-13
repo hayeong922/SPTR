@@ -1,4 +1,4 @@
-'''
+"""
 Copyright &copy;2015 Sheffield University (OAK Group)
 All Rights Reserved.
 
@@ -6,22 +6,26 @@ Developer(s):
    Jie Gao (j.gao@sheffield.ac.uk)
 
 @author: jieg
-'''
+"""
+
 import sys
+from nltk.tokenize.regexp import RegexpTokenizer
+from nltk.tokenize import word_tokenize
+
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+
 class LinguisticPreprocessor(object):
-    pos_tagging=None
-    default_tagger=None
-    text_tokeniser=None
-    np_extractor=None
-    _logger=None
-    
+
     def __init__(self):
         import logging
         
         self._logger=logging.getLogger(__name__)
+        self.pos_tagging=None
+        self.default_tagger=None
+        self.text_tokeniser=None
+        self.np_extractor=None
         
     def preprocessing(self, content):
         """
@@ -34,18 +38,24 @@ class LinguisticPreprocessor(object):
         return self.default_tagger(content).tags
         
     def customised_preprocessing(self, sent_content):
-        '''
+        """
         customised tokeniser for irregular text + NLTK pos tagging
         return normalised pos tagging in tuple list 
-        '''
+        """
         if self.text_tokeniser is None:
             self.text_tokeniser = self.get_special_text_tokeniser()
         if self.pos_tagging is None:
             self.pos_tagging = self.nltk_pos_tag()
-            
-        pos_tags= self.pos_tagging(self.text_tokeniser.tokenize(sent_content))
-        
-        return tuple(map(lambda x: (x[0], x[0]) if x[0]=='(' or x[0]==')' or x[0] == '@' or x[0] == '\\' or x[0] == '/' else (x[0], x[1]), pos_tags))
+
+        pos_tags=self.pos_tagging(self.text_tokeniser.tokenize(sent_content))
+
+        # pos_tags=self.pos_tagging(word_tokenize(sent_content))
+
+        try:
+            return tuple(map(lambda x: (x[0], x[0]) if x[0]=='(' or x[0]==')' or x[0] == '@' or x[0] == '\\' or x[0] == '/' else (x[0], x[1]), pos_tags))
+        except AttributeError:
+            self._logger.error("Bug in current NLTK version. Please install NLTK 3.0.")
+            raise AttributeError
         
     def get_perceptron_tagger(self):
         """
@@ -59,21 +69,24 @@ class LinguisticPreprocessor(object):
         return tb
 
     def get_special_text_tokeniser(self):
-        '''
+        """
+        @deprecated
         Customised NLTK Regex Tokeniser for special cases: e.g., 3rd, 2nd,1-23-4562, 425-12-3456, wal-mart
         TODO: try to use solr StandardTokenizer 
+        """
         '''
-        from nltk.tokenize.regexp import RegexpTokenizer
-        special_text_token_pattern=r''' (?x) # set flag to allow verbose regexps
+        special_text_token_pattern=r""" (?x) # set flag to allow verbose regexps
                     ([A-Z]\.)+     # abbreviations, e.g. U.S.A.
                     |(\$)?\d+(\.\d+)?%?[a-zA-Z0-9]* # currency and percentages, $12.40, 50%, and mix of number and characters, 3rd, 2nd
                     |\w+(-\w+)*     # words with internal hyphens
                     #|[a-zA-Z0-9]+  # 
-                    |'s # POS                
+                    |'s # POS
                     |\.\.\.         # ellipsis
-                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens                    
+                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens
+                    """
         '''
-        return RegexpTokenizer(special_text_token_pattern)
+        pattern = r'''(?x) (?:[A-Z]\.)+|\d+(?:\.\d+)?%?|\w+(?:[-']\w+)*|(?:[.,;"'?():*\-_/\\@&'])'''
+        return RegexpTokenizer(pattern)
     
     def customised_pos_tag(self):
         pos_model={')':')', '(':'(', '$':'$'}
@@ -94,10 +107,10 @@ class LinguisticPreprocessor(object):
     
     @staticmethod
     def whoosh_stemmer_func(lang="en"):
-        '''
+        """
         get stemmer function
         e.g., whoosh_stemmer_fun(term)
-        '''
+        """
         from whoosh.lang import stemmer_for_language
         stemfn = stemmer_for_language(lang)
         return stemfn
@@ -155,9 +168,9 @@ class LinguisticPreprocessor(object):
         return self.np_extractor(content).noun_phrases
     
     def get_NP_extractor(self):
-        '''
+        """
         return text blob NP extractor
-        '''
+        """
         #from textblob import TextBlob
         from textblob.np_extractors import ConllExtractor
         
@@ -260,26 +273,32 @@ class LinguisticPreprocessor(object):
         print(entities)
         
     def test_customised_preprocessing(self):
-        #sent_content="Mather/UK/Corus@Corus01, Tracey Brown/UK/Corus@Corus01, Frank __"
+        # sent_content="Mather/UK/Corus@Corus01, Tracey Brown/UK/Corus@Corus01, Frank "
         #sent_content="MAIN RISKS / AREAS FOR CONCERN "
         #sent_content="Minutes of CC&I/CR Technical Liason meeting"
-        sent_content=" Web Void Defects - Position in Rail"
+        # sent_content=" Web Void Defects - Position in Rail.  It's a pleasure to work with you. You're a star! They're agent."
+        sent_content="\n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   1515: Longitudinal S prints from 3rd HP rail Sequence\r\n  MSM\r\n Andrew Clark\r\n Longitudinal S prints attached below. Note, scanned area is limited to 220  mm (of 305 mm total thickness) by scanner bed. V segregate extends to approx 45 mm either side of centre-line. There is some light ic on strand one, which is not resolved on the scanned  image. Routine (transverse, 87 cast)  S prints were Grade 1 cl & Grade 0  ic. martyn \t \n U.S.A. is a country. US currency drops 30% by $12.40. We rolled 7000t of Lucchini in B214 of 245*340mm format with a final US  rate of 0.8%.  We rolled also from Saarstahl (320*240)   2000t of Unimetal blooms in 360*320 format and B219 steel code with a  final US rate of 1.9%.  For Sollac we were around 1.5% at the end  for a bloom format of 320*260."
         pos_tagged_content=self.customised_preprocessing(sent_content)
         print(pos_tagged_content)
         
     def test_special_text_tokeniser(self):
-        #content="\n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   1515: Longitudinal S prints from 3rd HP rail Sequence\r\n  MSM\r\n Andrew Clark\r\n Longitudinal S prints attached below. Note, scanned area is limited to 220  mm (of 305 mm total thickness) by scanner bed. V segregate extends to approx 45 mm either side of centre-line. There is some light ic on strand one, which is not resolved on the scanned  image. Routine (transverse, 87 cast)  S prints were Grade 1 cl & Grade 0  ic. martyn \t \n U.S.A. is a country. US currency drops 30% by $12.40. We rolled 7000t of Lucchini in B214 of 245*340mm format with a final US  rate of 0.8%.  We rolled also from Saarstahl (320*240)   2000t of Unimetal blooms in 360*320 format and B219 steel code with a  final US rate of 1.9%.  For Sollac we were around 1.5% at the end  for a bloom format of 320*260."
+        content="05-Jul-09  It's a pleasure. \n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   1515: Longitudinal S prints from 3rd HP rail Sequence\r\n  MSM\r\n Andrew Clark\r\n Longitudinal S prints attached below. Note, scanned area is limited to 220  mm (of 305 mm total thickness) by scanner bed. V segregate extends to approx 45 mm either side of centre-line. There is some light ic on strand one, which is not resolved on the scanned  image. Routine (transverse, 87 cast)  S prints were Grade 1 cl & Grade 0  ic. martyn \t \n U.S.A. is a country. US currency drops 30% by $12.40. We rolled 7000t of Lucchini in B214 of 245*340mm format with a final US  rate of 0.8%.  We rolled also from Saarstahl (320*240)   2000t of Unimetal blooms in 360*320 format and B219 steel code with a  final US rate of 1.9%.  For Sollac we were around 1.5% at the end  for a bloom format of 320*260."
         #content="M.Grant has a project to submit costs with all quality codes which  will prove very  useful."
-        content="Minutes of CC&I/CR Technical Liason meeting "
+        # content="Minutes of CC&I/CR Technical Liason meeting "
+
         tokens_content = self.get_special_text_tokeniser().tokenize(content)
         print(tokens_content)
-        #context to ignore for term recognition, but may cause problems (e.g., candidate extraction of "E daniel"):
+        # context to ignore for term recognition, but may cause problems (e.g., candidate extraction of "E daniel"):
         # E daniel.pyke@corusgroup.com www.muchmorethanrail.com Keith Bennett/UK/Corus
         # M.Grant has a project to submit costs with all quality codes which  will prove very  useful.
         # solr standard tokeniser will tokenise "M.Grant", "daniel.pyke" as a whole
         # for some irregular text, there is no space between two sentences. It becomes difficult to split.
+
 if __name__ == '__main__':
     print("===========Extract entities============")
+    import logging.config
+    logging.config.fileConfig(os.path.join(os.path.dirname(__file__), '..', 'config', 'logging.conf'))
+
     linguisticProcessor=LinguisticPreprocessor()
     linguisticProcessor.test_customised_preprocessing()
-    #linguisticProcessor.test_special_text_tokeniser()
+    # linguisticProcessor.test_special_text_tokeniser()

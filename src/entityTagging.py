@@ -14,12 +14,13 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 class Calais():
-    '''
+    """
     Experimental Calais entity tagger
     
     refer to http://developer.permid.org/open-calais-api/open-calais-tagging-reference/
     http://new.opencalais.com/wp-content/uploads/2015/06/Thomson-Reuters-Open-Calais-API-User-Guide-v3.pdf
-    '''
+    """
+
     _CALAIS_URL="https://api.thomsonreuters.com/permid/calais"
     #_CALAIS_URL="http://api.opencalais.com/enlighten/rest/"
     _uniqueAccessKey="FYiVFJUjyVSGhG7LtofR1iNAOHNWGJZQ"
@@ -54,14 +55,13 @@ class Calais():
         self._logger=logging.getLogger(__name__)
     
     def rest_POST(self, content, content_type="TEXT/RAW"):
-        '''
+        """
         send post request
         return json result
-        '''
+        """
         #_data={"Text":content}
         _data={"content":content}
-        
-        
+
         _headers={"X-AG-Access-Token":self._uniqueAccessKey,"Content-Type":content_type, "outputformat":"application/json"}
         
         #urllib.request.urlopen(...).read()

@@ -248,10 +248,10 @@ class TaggingProcessor(object):
         return term_candidates
     
     def sentence_split(self, content):
-        '''
+        """
         heuristic/pattern (e.g., by '\r\n' or '\t') based sentence splitting + NLTK's recommended sentence tokenizer         
         return list, sentence list
-        '''
+        """
         pattern_split = re.compile(r"[\r\n|\t]")
         sent_list = pattern_split.split(content.strip())
         
@@ -262,11 +262,11 @@ class TaggingProcessor(object):
         return sent_list
     
     def term_dictionary_tagging(self, doc_id):
-        '''
+        """
         tagging content with the statistic dictionary 
         return set, term set to be indexed
-        '''
-        
+        """
+
         self._logger.debug("term dictionary tagging for single document ...")
         
         indexed_terms = self.solrClient.query_indexed_terms_by_docId(doc_id, self.solr_field_content)
@@ -282,12 +282,12 @@ class TaggingProcessor(object):
         return tagged_terms
         
     def term_candidate_extraction(self,content):
-        '''
+        """
         Sentence based term candidates extraction. The content need to be tokenised and sentence splitted before parsing.
         params:
             content: content string to be analysed
         return set, term candidates extracted from content
-        '''
+        """
         self._logger.debug("term candidate extraction for single document...")
         
         term_candidates=set()
@@ -311,14 +311,15 @@ class TaggingProcessor(object):
         return term_candidates
     
     def frequency_filtering(self, term_candidates):
-        '''
+        """
         Corpus (whole index) based frequency filtering
         
         params:
             term_candidates: set()
         
         return set, filtered term candidates
-        '''
+        """
+
         self._logger.info("term frequency filtering for candidates [%s] by min frequency [%s]  ...",str(len(term_candidates)), str(self._min_term_freq))
         filtered_term_candidates=set()
         
@@ -334,12 +335,12 @@ class TaggingProcessor(object):
                 
         self._logger.info("current term candidate size after frequency filtering [%s]", str(len(filtered_term_candidates)))
         return filtered_term_candidates
-    
+
     def get_term_ttf(self, term, ttf_dict):
-        '''
+        """
         get term ttf value from a given ttf dictionary returned from SolrClient.totaltermfreq
         return ttf numerical value
-        '''
+        """
         return ttf_dict[term]
     
     def check_min_char_limit(self, multiword_term):
@@ -357,7 +358,7 @@ class TaggingProcessor(object):
         
         return True
     
-    def Linlinguistic_filter(self, candidate_set=set()):
+    def linguistic_filter(self, candidate_set=set()):
         """
         linguistic based term candidates filtering
         

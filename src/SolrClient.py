@@ -11,6 +11,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+import logging
 from urllib.parse import urlencode
 from urllib.parse import urljoin, urlsplit
 import json
@@ -112,12 +113,15 @@ class TermVectorResult(object):
         return iter(self.docs)
     
 class SolrClient(object):
-    '''
+    """
     Solr client APIs
-    '''
+    """
+
     solrURL="http://localhost:8983/solr/tatasteel"
     
     def __init__(self, server_url, decoder=None, timeout=60,result_class=Results,use_cache=None,cache=None):
+        self._logger=logging.getLogger(__name__)
+
         self.decoder = decoder or json.JSONDecoder()        
         self.solrURL = server_url
         self.scheme, netloc, path, query, fragment = urlsplit(server_url)
@@ -152,13 +156,13 @@ class SolrClient(object):
         
     
     def load_documents(self, start=0, rows=10):
-        '''
+        """
         load/fetch indexed documents (& stored metadata) in a range (start, rows)
         start: $page_number
         rows: $rows_per_page
         
         return documents {'docs'[],'numFound','start' }
-        '''
+        """
         params = {'q': '*:*', 'start':start, 'rows':rows}
         params['wt'] = 'json' # specify json encoding of results
         path = '%s/select?%s' % (self.path, urlencode(params, True))
@@ -166,13 +170,29 @@ class SolrClient(object):
         response = self._send_request('GET', path)
         
         return response['response']
-    
+
+    def load_documents_by_custom_query(self, query_condition, start=0, rows=10):
+        """
+        load documents by specific query condition
+        :param query_condition: solr query condition '*:*'
+        :param start:
+        :param rows:
+        :return: solr response
+        """
+        params = {'q': query_condition, 'start':start, 'rows':rows}
+        params['wt'] = 'json' # specify json encoding of results
+        path = '%s/select?%s' % (self.path, urlencode(params, True))
+
+        response = self._send_request('GET', path)
+
+        return response['response']
+
     def batch_update_documents(self, docs, commit=True):
-        '''
+        """
         batch update documents
         
         docs: documment object set in dict json format
-        '''
+        """
         
         docs = json.dumps(docs, ensure_ascii=False).encode(encoding='utf_8')        
         
@@ -189,16 +209,44 @@ class SolrClient(object):
         '''
         #{'responseHeader': {'status': 0, 'QTime': 115}}
         return response
-    
+
+    def update_document_by_url(self,doc_url,metadata=dict(),commit=True):
+        """
+        update documents by document url
+        metadata can be attached and enriched into indexing.
+
+
+        :param doc_url: document url
+        :param metadata: metadata dictionary. Metadata name(key) must be corresponded to the specified field type in Solr.
+        :param commit:
+        :return: json object, response encoded in JSON
+        """
+        self._logger.debug("indexing document [%s] ..."%doc_url)
+
+        params={'literal.id':doc_url,'commit':'true' if commit else 'false','stream.url':doc_url}
+        # http://speak-pc.k-now.co.uk/uploads/attachment/attachment/6/leflet_v1.docx
+        # val_headers= {"Content-type": "application/json"}
+        params['wt'] = 'json'
+        params.update(metadata)
+        path = '%s/update/extract?%s' % (self.path, urlencode(params, True))
+
+        #http://localhost:8983/solr/tatasteel/update/extract?literal.id=http://speak-pc.k-now.co.uk/uploads/attachment/attachment/6/leflet_v1.docx&commit=true&stream.url=http://speak-pc.k-now.co.uk/uploads/attachment/attachment/6/leflet_v1.docx
+        # print("self path", self.path)
+        # print("path:",path)
+
+        response = self._send_request('POST', path)
+
+        return response
+
     def total_document_size(self):
         result = self.load_documents(rows=0)
         return result['numFound']
-    
+
     def term_vectors(self,q,field=None,**kwargs):
-        '''
+        """
         param:
          q, query field, need to escape Special Characters + - && || ! ( ) { } [ ] ^ " ~ * ? : \
-        '''
+        """
         params = {'q': q.replace(':','\:') or '','tv.all':'true' }
         if field:
             params['tv.fl'] = field
@@ -207,11 +255,12 @@ class SolrClient(object):
         
         response = self._tvrh(params)
         return TermVectorResult(field,response)
-    
+
+
     def query_indexed_terms_by_docId(self, docId, p_field='content'):
-        '''
+        """
         return dict, term vector information
-        '''
+        """
         params = dict()
         params['fl']="id,content"
         params['start']=0
@@ -228,17 +277,17 @@ class SolrClient(object):
             return {}        
     
     def terms_query_longer_terms(self, field, subterm):
-        '''
+        """
         This function uses Solr Terms Component to query longer terms indexed in the [field] matched with a [sub-term] expression.
         
         return terms (dictionary) list with df values
         
         http://localhost:8983/solr/tatasteel/terms?terms.fl=content&terms.regex=^(.*?(\bsurface%20defects\b)[^$]*)$&terms.regex.flag=case_insensitive&terms.sort=count&terms.limit=10000
-        '''
+        """
         raise NotImplementedError("No supported!")
     
     def totaltermfreq(self,field, terms={}):
-        '''
+        """
         This function uses Solr ttf functionQuery to get total term (ngram) frequency in whole index
         
         Notes: the field query analyser significantly affects the ttf function query. To get accurate result, recommendation setting is to avoid solr.StopFilterFactory.
@@ -257,7 +306,7 @@ class SolrClient(object):
         return tuple of two dictionaries: 1) term ttf dictionary with normalised term as key and ttf as value
                                         2) normalised term dictionary with term as key and normed term as value
                                         
-        '''
+        """
         max_terms_per_request=10
         terms=list(terms)
         
@@ -267,23 +316,35 @@ class SolrClient(object):
         for next_cursor in range(0, len(terms), max_terms_per_request):
             current_terms = terms[next_cursor:next_cursor+max_terms_per_request]
             
-            current_normed_terms_dict=dict(((term, self.get_industry_term_field_analysis(term)) for term in current_terms))
+            current_normed_terms_dict=dict(((term, SolrClient._escpate_field_terms(self.get_industry_term_field_analysis(term))) for term in current_terms))
             normed_terms_dict.update(current_normed_terms_dict)
-            
+
+            # escapte normed term
+            # .replace('\'','\\\'')
+
             params={'q':'*:*','fl':','.join(['ttf(%s,\'%s\')'%(field,normed_term) for term, normed_term in current_normed_terms_dict.items()])}
                     
             params['q'] = self._encode_q(params['q'])
             params['rows']=1
             params['wt'] = 'json' # specify json encoding of results
             path = '%s/select?%s' % (self.path, urlencode(params, True))
-            
+
             response = self._send_request('GET', path)
             
             result=response['response']['docs']
             resultSet.update(result[0])
             
         return dict([(k.replace('ttf(%s,\''%field,'').replace('\')',''),v) for k, v in resultSet.items()]), normed_terms_dict
-    
+
+    @staticmethod
+    def _escpate_field_terms(normed_term):
+        """
+        escapte field terms for ttf request
+        :param normed_term:
+        :return:
+        """
+        return normed_term.replace("'","\\'")
+
     def field_terms(self, fieldname):
         """Yields all term values (converted from on-disk bytes) in the given
         field.
@@ -332,10 +393,11 @@ class SolrClient(object):
         return accent_folding_norm
         
     def _send_request(self, method, path, data=None, headers=None):
-        '''
+        """
         return response: requests.models.Response.json()
-        '''
+        """
         url = self.solrURL.replace(self.path, '')
+
         response = requests.request(method=method, url=urljoin(url, path),headers=headers,data=data)
         
         if response.status_code not in (200, 304):
@@ -372,7 +434,8 @@ class SolrClient(object):
 
 class SolrError(Exception):
     pass
-    
+
+
 
 def list2dict(data):
     # convert : [u'tf', 1, u'df', 2, u'tf-idf', 0.5]
@@ -491,7 +554,14 @@ def test_get_industry_term_field_analysis():
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
     normed_term = tatasteelClient.get_industry_term_field_analysis("subjective assessments")
     print("normed term: ", normed_term)
-    
+
+
+def test_update_document_by_url():
+    tatasteelClient=SolrClient("http://localhost:8983/solr/tatasteel")
+    doc_url="http://speak-pc.k-now.co.uk/uploads/attachment/attachment/6/leflet_v1.docx"
+    metadata_dict={'literal.productType_ss':"tundish"}
+    tatasteelClient.update_document_by_url(doc_url,metadata=metadata_dict)
+
 if __name__ == '__main__':
     
     #test_term_vectors()
@@ -503,8 +573,10 @@ if __name__ == '__main__':
     #test_field_analysis()
     #test_query_indexed_terms_by_docId()
     
-    test_get_industry_term_field_analysis()
-    
+    # test_get_industry_term_field_analysis()
+
+    test_update_document_by_url()
+
     '''
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
     print(tatasteelClient.solr_core)

@@ -13,6 +13,8 @@ import os
 import logging
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+import urllib.request
+
 encodings = ['utf-8', 'ISO-8859-2', 'windows-1250', 'windows-1252', 'latin1', 'ascii','ISO-8859-1']
 def determine_file_encoding(rawBytes):
     result = chardet.detect(rawBytes)
@@ -38,9 +40,11 @@ def load_corpus(corpus_dir):
     
     return corpus
 
+
 def export_to_pickle(obj, filename=""):
     import pickle
     pickle.dump(obj, open(filename, "wb"))
+
 
 def load_from_pickle(filename=""):    
     _logger=logging.getLogger(__name__)
@@ -52,12 +56,14 @@ def load_from_pickle(filename=""):
         
     return None
 
+
 def export_to_txt_file(file_dir, file_name, content):
     if not os.path.exists(os.path.join(file_dir)):
         os.makedirs(os.path.join(file_dir))
     
     with open(os.path.join(file_dir, file_name+".txt"), mode='w', encoding='utf-8') as outfile:
         outfile.write(content)
+
 
 def export_list_of_list_to_csv(file_dir, file_name, list_values):
     '''
@@ -187,10 +193,50 @@ def load_list_from_json(jsonfile):
         term_list=json.loads(f.read())
     return term_list
 
+class HeadRequest(urllib.request.Request):
+    def get_method(self):
+        return 'HEAD'
+
+def is_image(doc_url):
+    """
+    detect the file content for the file type whether is image
+    """
+    response= urllib.request.urlopen(HeadRequest(doc_url))
+    maintype= response.headers['Content-Type'].split(';')[0].lower()
+    if maintype is not None and maintype.startswith('image'):
+        return True
+
+    return False
+
+
+def is_url_accessible(doc_url):
+    """
+    detect the accessibility via the file URL
+    :param doc_url:
+    :return: True or False
+    """
+    import urllib.error
+    try:
+        if urllib.request.urlopen(doc_url).getcode() == 200:
+            return True
+    except urllib.error.HTTPError as error:
+        print("URL [%s] is not accessible: %s"%(doc_url, error))
+
+    return False
+
+#####################################
+##########Testing####################
+#####################################
+
 def test_tuple_list_loading():
     tuple_list=load_tuple_list_from_file("../config/bnc_unifrqs.normal")
     print("bnc freq list:", len(tuple_list))
     print(tuple_list[0])
-    
+
+def test_is_url_accessible():
+    # http://speak-pc.k-now.co.uk/uploads/attachment/attachment/15/ORB_Decarb_Anneal.jpg
+    print(is_url_accessible("http://www.cs.toronto.edu/~bonner/courses/2014s/csc321/lectures/lec51.pdf"))
+
 if __name__ == '__main__':
-    test_tuple_list_loading()
+    # test_tuple_list_loading()
+    test_is_url_accessible()
