@@ -60,7 +60,7 @@
 
 26) modify config/config
 
-	required:
+required:
 * the local solr url('solr_core_url')
 * path of 'pos_sequence_filter'
 * path of 'stopwords'
@@ -77,7 +77,8 @@ optional:
 * local/internal solr for term recognition computation and indexing ('local_solr_server')
 
 29) setup term recognition as scheduled task in linux
-	Solution:
+
+Solution:
 * use crontab via "crontab -e"
 * e.g., run batch processing every night:
 
