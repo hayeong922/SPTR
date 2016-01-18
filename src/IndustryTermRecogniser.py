@@ -261,7 +261,7 @@ class IndustryTermRecogniser(object):
         self._logger.info("terms has been exported into [%s]", output_csv)
 
     def synonym_aggregation(self, terms=set()):
-        '''
+        """
         Term variants identification: interlinking terms with normalisation, similarity computation and aggregate  
         1) case insensitivity matching;
         2) ASCII-equivalent matching () ;
@@ -269,7 +269,7 @@ class IndustryTermRecogniser(object):
         4) Punctuation-elimination matching (Marc Anthony <==> Marc-Anthony or Beer Sheva <==> Be'er Sheva)
         5) stemming
         6) string distance matching (normalised levenshtein metrics) -> TODO: later
-        '''
+        """
         
         if not self.export_term_variants:
             self._logger.info("Skip exporting term variants!")

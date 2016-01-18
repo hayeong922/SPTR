@@ -18,10 +18,20 @@ import json
 import re
 
 import requests
+import requests.exceptions
+from requests.adapters import HTTPAdapter
+
+s = requests.Session()
+s.mount('http://', HTTPAdapter(max_retries=10))
+s.mount('https://', HTTPAdapter(max_retries=10))
+# sleep for every field analysis request to avoid "Max retries exceeded with url"
+sleep_seconds_before_field_analysis_request = 0.1
+from time import sleep
 from httplib2 import Http
 
 DATETIME_REGEX = re.compile('^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})T(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(\.\d+)?Z$')
 ER_RE = re.compile ('<pre>(.|\n)*?</pre>')
+
 
 class Results(object):
     def __init__(self, response=None,decoder=None):
@@ -361,14 +371,15 @@ class SolrClient(object):
         return list2dict(all_terms)
     
     def field_analysis(self, term, field_type="industry_term_type"):
-        '''
+        """
         run field analysis for the term by a given field_type (use pre-defined industry_term_type)
         return string, phonetic filter normalised term
-        '''
+        """
+        global sleep_seconds_before_field_analysis_request
         params={'analysis.fieldvalue':term,'analysis.fieldtype':field_type}
         params['wt'] = 'json'
         path = '%s/analysis/field?%s' % (self.path, urlencode(params, True))
-        response=self._send_request('GET', path)
+        response=self._send_request('GET', path,sleep_before_request=sleep_seconds_before_field_analysis_request)
         analysis_result = response['analysis']
         
         analysis_result= list2dict(analysis_result['field_types'][field_type]['index'])
@@ -391,18 +402,30 @@ class SolrClient(object):
         
         accent_folding_norm = analysis_result['org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter'][0]['text']
         return accent_folding_norm
-        
-    def _send_request(self, method, path, data=None, headers=None):
-        """
-        return response: requests.models.Response.json()
-        """
-        url = self.solrURL.replace(self.path, '')
 
-        response = requests.request(method=method, url=urljoin(url, path),headers=headers,data=data)
-        
+    def _send_request(self, method, path, data=None, headers=None, sleep_before_request=0):
+        """
+
+        :param method: HTTP method include 'GET','POST','DELETE','PUT'
+        :param path: request url path,
+        :param path: data to send with the request
+        :param path: headers information
+        :param sleep_before_request: sleep(timeinsec) to allow enough time gap to send requests to server
+                            this is to avoid ConnectionError "Max retries exceeded with url". Default with no delay
+        :return: response in json format
+        """
+
+        url = self.solrURL.replace(self.path, '')
+        sleep(sleep_before_request)
+        try:
+            response = requests.request(method=method, url=urljoin(url, path),headers=headers,data=data)
+        except requests.exceptions.ConnectionError:
+            self._logger.warning("Connection refused.")
+            raise SolrError("Connection refused.")
+
         if response.status_code not in (200, 304):
             raise SolrError(self._extract_error(headers, response.reason))
-        
+
         return response.json()
     
     def _extract_error(self, headers, response):

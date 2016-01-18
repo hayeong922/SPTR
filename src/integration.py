@@ -57,7 +57,7 @@ class Integrator(object):
         :param docs: dictionary, Solr document objects
         :return:
         """
-        print("batch processing and indexing [%s] product issues ..." % len(docs))
+        self._logger.info("batch processing and indexing [%s] product issues ..." % len(docs))
 
         docs_to_index=[]
 
