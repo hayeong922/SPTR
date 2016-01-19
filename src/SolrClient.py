@@ -248,6 +248,19 @@ class SolrClient(object):
 
         return response
 
+    def load_document_by_id(self, doc_url):
+        id_query="id:\"%s\""%doc_url
+
+        results = self.load_documents_by_custom_query(id_query)
+        num_found=results['numFound']
+        if (num_found < 1) :
+            return None
+
+        docs = results['docs']
+
+        return docs[0]
+
+
     def total_document_size(self):
         result = self.load_documents(rows=0)
         return result['numFound']
@@ -455,6 +468,7 @@ class SolrClient(object):
         else:
             return qarg.encode('utf-8')
 
+
 class SolrError(Exception):
     pass
 
@@ -476,6 +490,7 @@ def list2dict(data):
     else:
         return dict(list(zip(keys,values)))
 
+
 def nested_list2dict(data):
     d = list2dict(data)
     
@@ -486,15 +501,15 @@ def nested_list2dict(data):
                 
             d[k] = v
     return d
-        
+
+
 def test_term_vectors():
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")
     params = dict()
     params['fl']="id,content"
     params['start']=0
     params['rows']=1
-    
-    
+
     query="id:'C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt'"
     #query="\"S-Print\""
     #query='C:\\oak-project\\TermRecogniser\\evaluate\\lotus_notes\\ Rail sprints  EMS trial results at standard 490A  300A-GRFRYP.txt'
@@ -585,6 +600,12 @@ def test_update_document_by_url():
     metadata_dict={'literal.productType_ss':"tundish"}
     tatasteelClient.update_document_by_url(doc_url,metadata=metadata_dict)
 
+def test_load_document_by_id():
+    tata_steel_client=SolrClient("http://oakanalysis.shef.ac.uk:8983/solr/tatasteel")
+    doc_url="http://speak-pc.k-now.co.uk/uploads/attachment/attachment/6/leflet_v1.docx"
+    doc = tata_steel_client.load_document_by_id(doc_url)
+    print("doc found:",doc)
+
 if __name__ == '__main__':
     
     #test_term_vectors()
@@ -598,7 +619,9 @@ if __name__ == '__main__':
     
     # test_get_industry_term_field_analysis()
 
-    test_update_document_by_url()
+    # test_update_document_by_url()
+
+    test_load_document_by_id()
 
     '''
     tatasteelClient = SolrClient("http://localhost:8983/solr/tatasteel")

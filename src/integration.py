@@ -14,6 +14,10 @@ from IndustryTermRecogniser import IndustryTermRecogniser
 remote_solr_server="http://speeak-pc.k-now.co.uk:8983/solr/default/"
 local_solr_server="http://localhost:8983/solr/tatasteel"
 # local_solr_server="http://oakanalysis.shef.ac.uk:8983/solr/tatasteel"
+# attachment retrieval api to access document store
+attachment_retrieval_api = "http://speeak-pc.k-now.co.uk/mobile/api/v2/attachments"
+# authorisation token to access documents
+attachment_retrieval_api_auth_token="Token token=0c3737ded50f387416cb0492022d0b18"
 
 
 class Integrator(object):
@@ -48,7 +52,7 @@ class Integrator(object):
                 self.batch_indexing_documents(docs)
                 self._logger.info("batch indexing documents. progress [%s]",start_index)
 
-        self._logger.info("complete batch processing of documents.")
+        self._logger.info("complete batch processing of documents. Documents has been indexed completely.")
 
     def batch_indexing_documents(self,docs):
         """
@@ -92,8 +96,16 @@ class Integrator(object):
                     self._logger.warn("The attachment [%s] is image. Skip for indexing", attachment_url)
                     continue
 
-                self.local_solr_client.update_document_by_url(attachment_url,metadata=metadata_dict)
+                existing_doc = self.local_solr_client.load_document_by_id(attachment_url)
+                if existing_doc is None:
+                    self.local_solr_client.update_document_by_url(attachment_url,metadata=metadata_dict)
+                else:
+                    # if current doc is existed
+                    #   update existing doc with possible new metadata
+                    existing_doc.update(metadata_dict)
+                    self.local_solr_client.update_document_by_url(attachment_url,metadata=existing_doc)
 
+            # config Solr for improved indexing speed
             # self.solr_client.commit_all()
 
 
@@ -104,8 +116,8 @@ class Integrator(object):
         :param attachment_id:
         :return: string, attachment url
         """
-        _headers={"Authorization":"Token token=0c3737ded50f387416cb0492022d0b18"}
-        attachment_retrieval_get_api="http://speeak-pc.k-now.co.uk/mobile/api/v2/attachments"
+        _headers={"Authorization":attachment_retrieval_api_auth_token}
+        attachment_retrieval_get_api=attachment_retrieval_api
 
         r = requests.get(attachment_retrieval_get_api+"/"+str(attachment_id),headers=_headers)
         if r.status_code == 200:

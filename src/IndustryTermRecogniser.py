@@ -27,12 +27,18 @@ from FileUtil import path_leaf
 import math
 from multiprocPool import MultiprocPool
 
-#content field from where industry terms will be extracted
+# content field from where industry terms will be extracted
 FIELD_CONTENT="content"
 FIELD_DOC_ID="id"
 FIELD_TERM_CANDIDATES="term_candidates_tvss"
 FIELD_INDUSTRY_TERM="industryTerm"
 FIELD_DICTIONARY_TERM="dictTerm_ss"
+
+# re-tagging documents (i.e., previously tagged)
+# check FIELD_TERM_CANDIDATES metadata to determine whether to re-tag documents or not
+# this setting is default
+RE_TAGGING=False
+
 
 class IndustryTermRecogniser(object):
     """
@@ -146,7 +152,7 @@ class IndustryTermRecogniser(object):
         """
         candidate extraction (AUTOMATIC + DICTIONARY MATCHER) -> candidate ranking -> final term list indexing -> synonym aggregation -> update synonyms via API
         """
-        self._logger.info("executing terminology recognition and tagging...")
+        self._logger.info("executing terminology recognition and tagging for indexed corpus ...")
         c_value_algorithm = CValueRanker(self.solrClient)
         ranked_term_tuple_list = c_value_algorithm.process(tagging=self.tagging)
         
@@ -181,9 +187,10 @@ class IndustryTermRecogniser(object):
             result = self.solrClient.load_documents(nextCursor, rows)
             docs = result['docs']
             
-            #TODO: parallel annotation
+            # TODO: parallel annotation
             cur_docs_to_commits=[]
             for doc in docs:
+
                 if FIELD_TERM_CANDIDATES in doc:
                     term_candidates = doc[FIELD_TERM_CANDIDATES]
                     filtered_candidates = [candidate for candidate in term_candidates if candidate in final_term_set]
@@ -193,15 +200,15 @@ class IndustryTermRecogniser(object):
                         if dict_terms:
                             filtered_candidates.extend(dict_terms)
                     
-                    #print("final industry_terms:", industry_terms)
+                    # print("final industry_terms:", industry_terms)
                     doc[FIELD_INDUSTRY_TERM] = list(set(filtered_candidates))
                     
                     cur_docs_to_commits.append(doc)
                 else:
-                    doc[FIELD_INDUSTRY_TERM]=[]
+                    doc[FIELD_INDUSTRY_TERM] = []
                 
             self.solrClient.batch_update_documents(cur_docs_to_commits)
-            self._logger.info("batch updated current batch. nextCursor[%s]" %str(nextCursor))
+            self._logger.debug("batch updated final term set for current batch. nextCursor[%s]" %str(nextCursor))
             
         self._logger.info("Industry Term extraction and indexing are completed!")
     
@@ -324,9 +331,10 @@ def term_weight_async_calculation(solrURL, term, optional_params=dict()):
         return CValueRanker.calculate(term, all_candidates, solrURL)
     else:
         raise Exception("Ranking Method is not supported!")        
-        
+
+
 class TermRanker(object):
-    #TODO: may add additional algorithm, see http://www.nltk.org/howto/collocations.html
+    # TODO: may add additional algorithm, see http://www.nltk.org/howto/collocations.html
     def __init__(self, solr_client):
         self._logger=logging.getLogger(__name__)        
         
@@ -355,9 +363,9 @@ class TermRanker(object):
             self.field_doc_id = 'id'
     
     def batch_candidate_tagging(self):
-        '''
+        """
         batch term candidate tagging + dictionary tagging (optional)
-        '''
+        """
         totalDocSize = self.solrClient.total_document_size()
         
         self._logger.info("total document size for candidate term tagging [%s]"%totalDocSize)
@@ -374,6 +382,12 @@ class TermRanker(object):
             for doc in docs:
                 content = doc[FIELD_CONTENT]
                 doc_id = doc[self.field_doc_id]
+
+                if FIELD_TERM_CANDIDATES in doc and RE_TAGGING is False:
+                    self._logger.debug("current document [%s] has been processed and tagged with candidates! "
+                                       "Skip for re-tagging ...", doc_id)
+                    continue
+
                 #lang= doc['language_s']
                 #skip non-english ?
                 '''
@@ -390,7 +404,7 @@ class TermRanker(object):
                 cur_docs_to_commits.append(doc)
                 
             self.solrClient.batch_update_documents(cur_docs_to_commits)
-            self._logger.info("batch updated current batch. nextCursor[%s]" %str(nextCursor))
+            self._logger.debug("batch updated current batch of candidata tagging. nextCursor[%s]" %str(nextCursor))
             
         self._logger.info("Term candidate extraction and loading for whole index is completed!")
         
@@ -433,10 +447,10 @@ class CValueRanker(TermRanker):
         self._logger.info(self.__class__.__name__)
     
     def process(self, tagging=True):
-        '''
+        """
         load term candidates-> c-value based ranking
         return tuple list, ranked term tuple list (term, c-value)
-        '''
+        """
         if tagging:
             super().batch_candidate_tagging()
         
@@ -445,7 +459,7 @@ class CValueRanker(TermRanker):
     
     @staticmethod
     def get_longer_terms(term, all_candidates):
-        '''
+        """
         the number of candidate terms that contain current term
         
         Simply term normalisation is applied. Could be extended with "solr_term_normaliser"
@@ -453,7 +467,7 @@ class CValueRanker(TermRanker):
             term, current term surface form
             all candidates: all candidates surface form from index
         return longer term list
-        '''
+        """
         _logger=logging.getLogger(__name__)
         try:
             return [longer_term for longer_term in all_candidates 

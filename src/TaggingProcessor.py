@@ -1,4 +1,4 @@
-'''
+"""
 Copyright &copy;2015 Sheffield University (OAK Group)
 All Rights Reserved.
 
@@ -6,7 +6,8 @@ Developer(s):
    Jie Gao (j.gao@sheffield.ac.uk)
 
 @author: jieg
-'''
+"""
+
 import os
 import sys
 import re
@@ -28,15 +29,17 @@ from multiprocPool import MultiprocPool
 #default levenshtein distance used to filter similar term
 LEVENSHTEIN_DISTANCE=3
 
+
 def term_async_comparison(indexed_term, dict_terms, fuzzy=False, dict_terms_trie = TrieNode(), threshold=0.95):
-    '''
+    """
     term pair-wise comparison for two terms with both exact matching and levenshtein based fuzzy matching
     params:
         indexed_term, potential term to be matched with the given dictionary terms
         dict_terms, dictionary terms
         
     return indexed term, if matched otherwise empty string
-    '''
+    """
+
     #if indexed_term == dict_term:
     #    return indexed_term
     exact_matched_terms = [dict_term for dict_term in dict_terms if indexed_term == dict_term]
@@ -297,14 +300,14 @@ class TaggingProcessor(object):
         
         for sent_content in sent_tokenize_list:
             pos_sent_content=self.linguistic_processor.customised_preprocessing(sent_content)
-            #print(pos_sent_content)
+            # print(pos_sent_content)
             for candidate_grammar in grammars:
                 pos_filter_candidates=self.parsing_candidates_regexp(pos_sent_content,candidate_grammar)
                 term_candidates.update(pos_filter_candidates)
             
         self._logger.debug("term_candidates size after PoS filtering: [%s]", len(term_candidates))
         term_candidates = self.linguistic_filter(term_candidates)
-        #print(term_candidates)
+        # print(term_candidates)
         term_candidates = self.frequency_filtering(term_candidates)
         
         self._logger.debug("Term candidate extraction for current doc is completed.")
@@ -320,7 +323,7 @@ class TaggingProcessor(object):
         return set, filtered term candidates
         """
 
-        self._logger.info("term frequency filtering for candidates [%s] by min frequency [%s]  ...",str(len(term_candidates)), str(self._min_term_freq))
+        self._logger.debug("term frequency filtering for candidates [%s] by min frequency [%s]  ...",str(len(term_candidates)), str(self._min_term_freq))
         filtered_term_candidates=set()
         
         terms_ttf_dict, normed_terms_dict= self.solrClient.totaltermfreq(self.solr_field_content, term_candidates)
@@ -333,7 +336,7 @@ class TaggingProcessor(object):
                 if tc_ttf >  self._min_term_freq:
                     filtered_term_candidates.add(term)
                 
-        self._logger.info("current term candidate size after frequency filtering [%s]", str(len(filtered_term_candidates)))
+        self._logger.debug("current term candidate size after frequency filtering [%s]", str(len(filtered_term_candidates)))
         return filtered_term_candidates
 
     def get_term_ttf(self, term, ttf_dict):
@@ -344,9 +347,9 @@ class TaggingProcessor(object):
         return ttf_dict[term]
     
     def check_min_char_limit(self, multiword_term):
-        '''
+        """
         return True if none of term unit length less than minimum char length
-        '''
+        """
         is_exist_min_char=0
         
         for token in multiword_term.split(' '):
@@ -368,20 +371,21 @@ class TaggingProcessor(object):
         
         """        
         #TODO: check how many gold standards can be filtered
-        self._logger.info("linguistic filtering ...")
-        self._logger.info("stopword size: [%s], minimum tokens allowed: [%s], maximum tokens allowed [%s], min character allowed: [%s]", str(len(self.stopword_list)), str(self._min_tokens), str(self._max_tokens), str(self._min_char_length))
-        #filter by matching with a stopwords
-        #use the word_lower_func to lowercase the words to do stopword match except symbolic character is uppercase (for e.g., Longitudinal S prints, US)
+        self._logger.debug("linguistic filtering ...")
+        self._logger.debug("stopword size: [%s], minimum tokens allowed: [%s], maximum tokens allowed [%s], min character allowed: [%s]", str(len(self.stopword_list)), str(self._min_tokens), str(self._max_tokens), str(self._min_char_length))
+        # filter by matching with a stopwords
+        # use the word_lower_func to lowercase the words to do stopword match
+        #   except symbolic character is uppercase (for e.g., Longitudinal S prints, US)
         word_lower_func=lambda w: re.escape(w.lower()) if len(w) > 2 else w
         resultSet= set([x for x in candidate_set if any(word_lower_func(word) in self.stopword_list for word in x.split()) is False])
         
-        #add back filtered results by removing first stopword
+        # add back filtered results by removing first stopword
         stopword_filtered_resultSet= candidate_set - resultSet
-        #print("stopword_filtered_resultSet:", stopword_filtered_resultSet)        
+        # print("stopword_filtered_resultSet:", stopword_filtered_resultSet)
         first_word_striped_resultset=[' '.join(term.split()[1:]) for term in stopword_filtered_resultSet if len(term.split()) > 1 and word_lower_func(term.split()[0]) in self.stopword_list]
-        #print("add back striped results:", first_word_striped_resultset)
+        # print("add back striped results:", first_word_striped_resultset)
         resultSet.update(first_word_striped_resultset)
-        #print("results after stopwords filtering:", resultSet)
+        # print("results after stopwords filtering:", resultSet)
         
         resultSet= set([x for x in resultSet if len(x.split()) >= self._min_tokens and len(x.split()) <= self._max_tokens])
                 
@@ -410,11 +414,11 @@ def test_term_candidate_extraction():
     config = configparser.ConfigParser()
     config.read(os.path.join(os.path.dirname(__file__), '..', 'config','config'))
     taggingProcessor = TaggingProcessor(config)
-    #content="\n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   1515: Longitudinal S prints from 3rd HP rail Sequence\r\n  MSM\r\n Andrew Clark\r\n Longitudinal S prints attached below. Note, scanned area is limited to 220  mm (of 305 mm total thickness) by scanner bed. V segregate extends to approx 45 mm either side of centre-line. There is some light ic on strand one, which is not resolved on the scanned  image. Routine (transverse, 87 cast)  S prints were Grade 1 cl & Grade 0  ic. martyn \t \n U.S.A. is a country. US currency drops 30% by $12.40. We rolled 7000t of Lucchini in B214 of 245*340mm format with a final US  rate of 0.8%.  We rolled also from Saarstahl (320*240)   2000t of Unimetal blooms in 360*320 format and B219 steel code with a  final US rate of 1.9%.  For Sollac we were around 1.5% at the end  for a bloom format of 320*260. \n "
-    #content="Absolute maximum length cold is 9.350m  Absolute minimum cold length is  5.700m Except for rail steels which are ordered to a dead length. TBM 4500 to 4750mm  5550 to 7000mm 7800 to 9600mm Hot Usable Lengths  4545 to 4795mm 5605 to 7070mm 7875 to 9695 mm       Any longer must be cropped back Any shorter than 4500 will  be scrap Any between the length ranges above are in the furnace dead lengths and  should be cropped back to take length into the acceptable range."
-    #content="If the strand is capped off or lost during the sequence  revert to the next available strand."
-    #content=" \n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   Web Void Defects - Position in Rail\r\n  "
-    #content="They do have the two casts above 1.6ppm in them but these can be printed  and rescanned. Regards Rob Robert B Lambert/UK/Corus  \t \tTo \tdavidjonesconsulting@toucansurf.com \tcc \t \tSubject \tFinal Analyses for both Indian Rail Sequences \t \t \t \t \t David, Please find below pdfs of final results for all Indian rail order casts. [rattachement 81249-81251.pdf supprime par Pascale BONNET/FR/Corus]"
+    # content="\n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   1515: Longitudinal S prints from 3rd HP rail Sequence\r\n  MSM\r\n Andrew Clark\r\n Longitudinal S prints attached below. Note, scanned area is limited to 220  mm (of 305 mm total thickness) by scanner bed. V segregate extends to approx 45 mm either side of centre-line. There is some light ic on strand one, which is not resolved on the scanned  image. Routine (transverse, 87 cast)  S prints were Grade 1 cl & Grade 0  ic. martyn \t \n U.S.A. is a country. US currency drops 30% by $12.40. We rolled 7000t of Lucchini in B214 of 245*340mm format with a final US  rate of 0.8%.  We rolled also from Saarstahl (320*240)   2000t of Unimetal blooms in 360*320 format and B219 steel code with a  final US rate of 1.9%.  For Sollac we were around 1.5% at the end  for a bloom format of 320*260. \n "
+    # content="Absolute maximum length cold is 9.350m  Absolute minimum cold length is  5.700m Except for rail steels which are ordered to a dead length. TBM 4500 to 4750mm  5550 to 7000mm 7800 to 9600mm Hot Usable Lengths  4545 to 4795mm 5605 to 7070mm 7875 to 9695 mm       Any longer must be cropped back Any shorter than 4500 will  be scrap Any between the length ranges above are in the furnace dead lengths and  should be cropped back to take length into the acceptable range."
+    # content="If the strand is capped off or lost during the sequence  revert to the next available strand."
+    # content=" \n \n  \n  \n  \n  \n  \n  \n  \n  \n \n   Web Void Defects - Position in Rail\r\n  "
+    # content="They do have the two casts above 1.6ppm in them but these can be printed  and rescanned. Regards Rob Robert B Lambert/UK/Corus  \t \tTo \tdavidjonesconsulting@toucansurf.com \tcc \t \tSubject \tFinal Analyses for both Indian Rail Sequences \t \t \t \t \t David, Please find below pdfs of final results for all Indian rail order casts. [rattachement 81249-81251.pdf supprime par Pascale BONNET/FR/Corus]"
     content="We will then endeavour to break the sample along a  crack and look for evidence of aluminium nitrides, just in case there is  residual aluminium from the standard ferro-alloy additions (but is  unlikely)."
     term_candidates = taggingProcessor.term_candidate_extraction(content)
     print("term_candidates: ", term_candidates)
