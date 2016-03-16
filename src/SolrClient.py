@@ -21,6 +21,8 @@ import requests
 import requests.exceptions
 from requests.adapters import HTTPAdapter
 
+from httplib2 import Credentials
+
 s = requests.Session()
 s.mount('http://', HTTPAdapter(max_retries=10))
 s.mount('https://', HTTPAdapter(max_retries=10))
@@ -129,7 +131,7 @@ class SolrClient(object):
 
     solrURL="http://localhost:8983/solr/tatasteel"
     
-    def __init__(self, server_url, decoder=None, timeout=60,result_class=Results,use_cache=None,cache=None):
+    def __init__(self, server_url, decoder=None, timeout=60,result_class=Results,use_cache=None,cache=None,username=None,password=None):
         self._logger=logging.getLogger(__name__)
 
         self.decoder = decoder or json.JSONDecoder()        
@@ -154,7 +156,13 @@ class SolrClient(object):
             self.http = Http(cache=cache or ".cache",timeout=self.timeout)
         else:
             self.http = Http(timeout=self.timeout)
-            
+
+        self._auth = None
+        if username != None and password is not None:
+            #self.http.credentials.add(username,password)
+            self._auth=(username,password)
+
+
         import configparser
         config = configparser.ConfigParser()
         config.read(os.path.join(os.path.dirname(__file__), '..', 'config','config'))
@@ -431,12 +439,18 @@ class SolrClient(object):
         url = self.solrURL.replace(self.path, '')
         sleep(sleep_before_request)
         try:
-            response = requests.request(method=method, url=urljoin(url, path),headers=headers,data=data)
+            if self._auth:
+                response = requests.request(method=method, url=urljoin(url, path),
+                                            headers=headers,data=data,auth=self._auth)
+            else:
+                response = requests.request(method=method, url=urljoin(url, path),
+                                            headers=headers,data=data)
         except requests.exceptions.ConnectionError:
-            self._logger.warning("Connection refused.")
+            self._logger.warning("Connection refused when requesting [%s]", urljoin(url, path))
             raise SolrError("Connection refused.")
 
         if response.status_code not in (200, 304):
+            self._logger.error("failed to send request to [%s]. Reason: [%s]", urljoin(url, path),response.reason)
             raise SolrError(self._extract_error(headers, response.reason))
 
         return response.json()

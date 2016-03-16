@@ -82,7 +82,7 @@ class LinguisticPreprocessor(object):
                     #|[a-zA-Z0-9]+  # 
                     |'s # POS
                     |\.\.\.         # ellipsis
-                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens
+                    |[][.,;"'?():*\-_/\\@&']    # separate special character tokens (punctuations)
                     """
         '''
         pattern = r'''(?x) (?:[A-Z]\.)+|\d+(?:\.\d+)?%?|\w+(?:[-']\w+)*|(?:[.,;"'?():*\-_/\\@&'])'''
